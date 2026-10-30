@@ -34,6 +34,12 @@ private data class LocalReport(
     val databaseCount: Int
 )
 
+private data class CategoryScore(
+    val score: Int,
+    val label: String,
+    val reason: String
+)
+
 class MainActivity : Activity() {
     private lateinit var output: TextView
     private lateinit var ipInput: EditText
@@ -139,6 +145,12 @@ class MainActivity : Activity() {
                 ?.address()?.toString()
         } catch (_: Exception) { null }
         val report = LocalReport(vpn, transports, dns, proxy, entries.size)
+        val configScore = when {
+            report.vpn && report.systemProxy != null -> 100
+            report.systemProxy != null -> 90
+            report.vpn -> 75
+            else -> null
+        }
         output.text = buildString {
             appendLine("نتيجة الفحص المحلي")
             appendLine("اتصال نشط: ${if (network == null) "غير متاح" else "نعم"}")
@@ -149,7 +161,18 @@ class MainActivity : Activity() {
             appendLine("سجلات قاعدة البيانات المحلية: ${report.databaseCount}")
             databaseLoadError?.let { appendLine("تنبيه قاعدة البيانات: $it") }
             appendLine()
-            appendLine("ملاحظة: غياب إعداد بروكسي ظاهر لا يثبت عدم وجود نفق أو بروكسي على مستوى تطبيق آخر أو الشبكة.")
+            appendLine("مؤشر رصد وسيط/نفق على الجهاز")
+            if (configScore == null) {
+                appendLine("النتيجة: غير محسوبة — لم تظهر مؤشرات وسيط أو VPN في المعلومات التي يتيحها Android.")
+            } else {
+                appendLine("النتيجة: $configScore/100 ($configScore%) — ${riskBand(configScore)}")
+                if (report.vpn) appendLine("السبب: النظام يبلغ عن اتصال VPN نشط.")
+                if (report.systemProxy != null) appendLine("السبب: إعداد بروكسي نظام ظاهر: ${report.systemProxy}.")
+            }
+            appendLine("هذا مؤشر لوجود وسيط/نفق ظاهر، وليس حكماً بأن الاتصال ضار أو أن المشغّل غير موثوق.")
+            appendLine()
+            appendLine("سمعة عنوان IP: غير متاحة في الفحص المحلي. أدخل عنوان IP وافحصه مقابل قاعدة محلية لتقييم تصنيفه.")
+            appendLine("ملاحظة: عدم ظهور إعداد بروكسي لا يثبت عدم وجود وسيط على مستوى تطبيق آخر أو الشبكة.")
         }
     }
 
@@ -160,14 +183,71 @@ class MainActivity : Activity() {
             return
         }
         val matches = entries.filter { cidrContains(it.cidr, ip) }
-        output.text = if (matches.isEmpty()) {
-            "لم يُعثر على تطابق في قاعدة البيانات المحلية. هذا لا يعني أن العنوان آمن أو غير مصنف؛ قد تكون القاعدة محدودة أو قديمة."
-        } else buildString {
-            appendLine("تطابقات محلية: ${matches.size}")
+        if (matches.isEmpty()) {
+            output.text = buildString {
+                appendLine("تقييم عنوان IP: غير متاح")
+                appendLine("لم يُعثر على تطابق في قاعدة البيانات المحلية.")
+                appendLine("النتيجة ليست 0% خطورة ولا تعني أن العنوان آمن؛ قد تكون القاعدة محدودة أو قديمة.")
+            }
+            return
+        }
+
+        val scoredMatches = matches.mapNotNull { entry ->
+            scoreForCategory(entry.category)?.let { entry to it }
+        }
+        output.text = buildString {
+            appendLine("تقييم عنوان IP: $raw")
+            appendLine("تطابقات قاعدة البيانات: ${matches.size}")
+            if (scoredMatches.isEmpty()) {
+                appendLine("مؤشر الاشتباه بكونه وسيطاً: غير متاح")
+                appendLine("عُثر على تصنيفات، لكن لا يوجد بينها تصنيف يدعمه نموذج التقييم الحالي؛ لن نخترع نسبة.")
+            } else {
+                val strongest = scoredMatches.maxByOrNull { it.second.score }!!.second
+                appendLine("مؤشر الاشتباه بكونه وسيطاً: ${strongest.score}/100 (${strongest.score}%)")
+                appendLine("المستوى: ${riskBand(strongest.score)}")
+                appendLine("أساس التقييم: ${strongest.reason}")
+                appendLine("موثوقية المصدر: محدودة — لم يتم التحقق تلقائياً من مصدر قاعدة البيانات أو حداثتها.")
+            }
+            appendLine()
+            appendLine("التصنيفات المطابقة:")
             matches.take(20).forEach { appendLine("• ${it.category} — ${it.source} (${it.cidr})") }
             appendLine()
-            append("هذه مؤشرات من قاعدة مستوردة وليست حكماً قطعياً.")
+            appendLine("النسبة مؤشر تصنيفي إرشادي وليست احتمالاً إحصائياً بأن البروكسي خطير أو ضار.")
         }
+    }
+
+    private fun scoreForCategory(rawCategory: String): CategoryScore? {
+        val category = rawCategory.trim().lowercase()
+            .replace('_', ' ')
+            .replace('-', ' ')
+        val hasProxy = category.contains("proxy") ||
+            category.contains("بروكسي") ||
+            category.contains("وكيل") ||
+            category.contains("خادم وسيط")
+
+        return when {
+            (category.contains("residential") || category.contains("سكني")) && hasProxy ->
+                CategoryScore(95, "مرتفع جداً", "تصنيف القاعدة يشير صراحةً إلى بروكسي سكني.")
+            hasProxy ->
+                CategoryScore(90, "مرتفع", "تصنيف القاعدة يشير صراحةً إلى عنوان بروكسي أو خادم وسيط.")
+            category.contains("tor") || category.contains("exit node") || category.contains("عقدة خروج") ->
+                CategoryScore(88, "مرتفع", "تصنيف القاعدة يشير إلى Tor أو عقدة خروج.")
+            category.contains("vpn") || category.contains("في بي ان") ->
+                CategoryScore(82, "مرتفع", "تصنيف القاعدة يشير إلى عنوان VPN.")
+            category.contains("datacenter") || category.contains("data center") ||
+                category.contains("hosting") || category.contains("cloud") ||
+                category.contains("مركز بيانات") || category.contains("استضافة") ||
+                category.contains("سحابي") ->
+                CategoryScore(35, "منخفض", "العنوان ضمن بنية استضافة أو مركز بيانات؛ هذا مؤشر ضعيف ولا يثبت أنه بروكسي.")
+            else -> null
+        }
+    }
+
+    private fun riskBand(score: Int): String = when {
+        score >= 85 -> "مرتفع"
+        score >= 60 -> "متوسط"
+        score >= 30 -> "منخفض"
+        else -> "ضعيف"
     }
 
     private fun openDatabasePicker() {
