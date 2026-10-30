@@ -1,0 +1,9 @@
+{
+  "name": "proxyguard",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Privacy-aware proxy and VPN risk analyzer for a user's own connection",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.js", "dev": "node --watch server.js", "test": "node --test" }
+}
