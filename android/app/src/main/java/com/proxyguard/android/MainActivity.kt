@@ -204,7 +204,7 @@ class MainActivity : Activity() {
             } else {
                 val strongest = scoredMatches.maxByOrNull { it.second.score }!!.second
                 appendLine("مؤشر الاشتباه بكونه وسيطاً: ${strongest.score}/100 (${strongest.score}%)")
-                appendLine("المستوى: ${riskBand(strongest.score)}")
+                appendLine("المستوى: ${strongest.label}")
                 appendLine("أساس التقييم: ${strongest.reason}")
                 appendLine("موثوقية المصدر: محدودة — لم يتم التحقق تلقائياً من مصدر قاعدة البيانات أو حداثتها.")
             }
@@ -230,7 +230,7 @@ class MainActivity : Activity() {
                 CategoryScore(95, "مرتفع جداً", "تصنيف القاعدة يشير صراحةً إلى بروكسي سكني.")
             hasProxy ->
                 CategoryScore(90, "مرتفع", "تصنيف القاعدة يشير صراحةً إلى عنوان بروكسي أو خادم وسيط.")
-            category.contains("tor") || category.contains("exit node") || category.contains("عقدة خروج") ->
+            (category == "tor" || category.contains("tor exit") || category.contains("tor node") || category.contains("exit node") || category.contains("عقدة خروج") || category.contains("تور")) ->
                 CategoryScore(88, "مرتفع", "تصنيف القاعدة يشير إلى Tor أو عقدة خروج.")
             category.contains("vpn") || category.contains("في بي ان") ->
                 CategoryScore(82, "مرتفع", "تصنيف القاعدة يشير إلى عنوان VPN.")
