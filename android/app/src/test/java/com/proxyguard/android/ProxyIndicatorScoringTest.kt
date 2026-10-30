@@ -53,4 +53,26 @@ class ProxyIndicatorScoringTest {
         assertEquals("غير صالحة", ProxyIndicatorScoring.indicatorBand(-1))
         assertEquals("غير صالحة", ProxyIndicatorScoring.indicatorBand(101))
     }
+
+    @Test
+    fun indicatorColorsMatchTheFourRequestedLevels() {
+        val green = ProxyIndicatorScoring.indicatorStyle(25)!!
+        assertEquals("منخفضة", green.label)
+        assertEquals(0xFF16A34A.toInt(), green.foregroundColor)
+
+        val blue = ProxyIndicatorScoring.indicatorStyle(50)!!
+        assertEquals("متوسطة", blue.label)
+        assertEquals(0xFF2563EB.toInt(), blue.foregroundColor)
+
+        val orange = ProxyIndicatorScoring.indicatorStyle(75)!!
+        assertEquals("عالية", orange.label)
+        assertEquals(0xFFF97316.toInt(), orange.foregroundColor)
+
+        val red = ProxyIndicatorScoring.indicatorStyle(90)!!
+        assertEquals("مرتفعة جداً", red.label)
+        assertEquals(0xFFDC2626.toInt(), red.foregroundColor)
+
+        assertNull(ProxyIndicatorScoring.indicatorStyle(-1))
+        assertNull(ProxyIndicatorScoring.indicatorStyle(101))
+    }
 }
