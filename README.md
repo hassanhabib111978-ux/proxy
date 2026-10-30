@@ -3,7 +3,7 @@
 ProxyGuard has two separate implementations with different privacy and network behavior:
 
 - **Legacy Web MVP (0.1.1):** browser/server demonstration that uses external IP and STUN services as described below.
-- **Android local-first MVP (0.2.0):** native Android app intended to perform its initial diagnostics entirely on-device, without a ProxyGuard backend or internet permission.
+- **Android local-first MVP (0.2.1):** native Android app intended to perform its initial diagnostics entirely on-device, without a ProxyGuard backend or internet permission.
 
 Neither edition guarantees anonymity or reproduces every website's proxy-detection systems.
 
