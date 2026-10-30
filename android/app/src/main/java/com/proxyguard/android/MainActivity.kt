@@ -2,6 +2,9 @@ package com.proxyguard.android
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
@@ -9,6 +12,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import java.io.ByteArrayOutputStream
@@ -37,6 +41,11 @@ private data class LocalReport(
 class MainActivity : Activity() {
     private lateinit var output: TextView
     private lateinit var ipInput: EditText
+    private lateinit var indicatorCard: LinearLayout
+    private lateinit var indicatorTitle: TextView
+    private lateinit var indicatorValue: TextView
+    private lateinit var indicatorLevel: TextView
+    private lateinit var indicatorProgress: ProgressBar
     private val dbFile by lazy { File(filesDir, "proxyguard-ip-intel.csv") }
     private val entries = mutableListOf<IntelEntry>()
     private var databaseLoadError: String? = null
@@ -100,6 +109,43 @@ class MainActivity : Activity() {
             text = "استيراد قاعدة بيانات CSV"
             setOnClickListener { openDatabasePicker() }
         }
+        indicatorCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = indicatorBackground(0xFFF1F5F9.toInt())
+        }
+        indicatorTitle = TextView(this).apply {
+            text = "مؤشر اكتشاف VPN / Proxy"
+            textSize = 14f
+            setTextColor(0xFF1E293B.toInt())
+        }
+        indicatorValue = TextView(this).apply {
+            text = "غير متاح"
+            textSize = 28f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xFF64748B.toInt())
+        }
+        indicatorLevel = TextView(this).apply {
+            text = "لا توجد بيانات كافية لإصدار مؤشر"
+            textSize = 14f
+            setTextColor(0xFF475569.toInt())
+        }
+        indicatorProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+            progressTintList = ColorStateList.valueOf(0xFF64748B.toInt())
+            progressBackgroundTintList = ColorStateList.valueOf(0xFFDCE3EA.toInt())
+        }
+        indicatorCard.addView(indicatorTitle)
+        indicatorCard.addView(indicatorValue, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(6) })
+        indicatorCard.addView(indicatorLevel, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(2) })
+        indicatorCard.addView(indicatorProgress, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(10)
+        ).apply { topMargin = dp(12) })
         output = TextView(this).apply {
             textSize = 15f
             setTextColor(0xFF1D3045.toInt())
@@ -110,7 +156,7 @@ class MainActivity : Activity() {
             textSize = 13f
             setTextColor(0xFF526579.toInt())
         }
-        listOf(title, subtitle, ipInput, scan, checkIp, import, output, privacy).forEach {
+        listOf(title, subtitle, ipInput, scan, checkIp, import, indicatorCard, output, privacy).forEach {
             content.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 bottomMargin = 18
             })
@@ -140,6 +186,7 @@ class MainActivity : Activity() {
         } catch (_: Exception) { null }
         val report = LocalReport(vpn, transports, dns, proxy, entries.size)
         val configScore = ProxyIndicatorScoring.deviceSignalScore(report.vpn, report.systemProxy != null)
+        updateIndicator(configScore, "مؤشر اكتشاف VPN / Proxy")
         output.text = buildString {
             appendLine("نتيجة الفحص المحلي")
             appendLine("اتصال نشط: ${if (network == null) "غير متاح" else "نعم"}")
@@ -159,7 +206,7 @@ class MainActivity : Activity() {
                 if (report.vpn) appendLine("الدليل: Android يبلغ عن اتصال VPN نشط.")
                 if (report.systemProxy != null) appendLine("الدليل: إعداد بروكسي نظام ظاهر: ${report.systemProxy}.")
             }
-            appendLine("تنبيه: هذه قوة إشارة الرصد وليست درجة خطورة أو احتمالاً إحصائياً. الأوزان ثابتة وتجريبية في هذا الإصدار.")
+            appendLine("الألوان تبيّن مستوى مؤشر الرصد فقط، وليست حكماً على خطورة الاتصال أو احتمالاً إحصائياً.")
             appendLine("الخطورة الأمنية أو إساءة استخدام عنوان IP: غير متاحة دون قاعدة سمعة/تهديد موثوقة.")
             appendLine()
             appendLine("سمعة عنوان IP: غير متاحة في الفحص المحلي. أدخل عنوان IP وافحصه مقابل قاعدة محلية لتقييم تصنيفه.")
@@ -170,11 +217,13 @@ class MainActivity : Activity() {
     private fun inspectIp(raw: String) {
         val ip = parseIpLiteral(raw)
         if (ip == null) {
+            updateIndicator(null, "مؤشر تصنيف عنوان IP")
             output.text = "عنوان IP غير صالح. أدخل عنوان IPv4 أو IPv6 رقمياً دون اسم نطاق."
             return
         }
         val matches = entries.filter { cidrContains(it.cidr, ip) }
         if (matches.isEmpty()) {
+            updateIndicator(null, "مؤشر تصنيف عنوان IP")
             output.text = buildString {
                 appendLine("تصنيف عنوان IP: غير متاح")
                 appendLine("لم يُعثر على تطابق في قاعدة البيانات المحلية.")
@@ -191,10 +240,12 @@ class MainActivity : Activity() {
             appendLine("فحص عنوان IP: $raw")
             appendLine("تطابقات قاعدة البيانات: ${matches.size}")
             if (scoredMatches.isEmpty()) {
+                updateIndicator(null, "مؤشر تصنيف عنوان IP")
                 appendLine("مؤشر تصنيف العنوان كوسيط: غير متاح")
                 appendLine("التصنيفات المطابقة لا تتضمن فئة يدعمها نموذج المؤشر الحالي؛ لا يمكن إعطاء نسبة.")
             } else {
                 val strongest = scoredMatches.maxByOrNull { it.second.score }!!.second
+                updateIndicator(strongest.score, "مؤشر تصنيف عنوان IP")
                 appendLine("مؤشر تصنيف العنوان كوسيط: ${strongest.score}/100 (${strongest.score}%)")
                 appendLine("قوة إشارة التصنيف: ${strongest.label}")
                 appendLine("أساس المؤشر: ${strongest.reason}")
@@ -208,6 +259,50 @@ class MainActivity : Activity() {
             appendLine("هذه درجة مؤشر تصنيفي تجريبي وليست احتمالاً إحصائياً ولا نسبة خطورة.")
         }
     }
+
+    private fun updateIndicator(score: Int?, title: String) {
+        indicatorTitle.text = title
+        if (score == null) {
+            indicatorValue.text = "غير متاح"
+            indicatorLevel.text = "لا توجد بيانات كافية لإصدار مؤشر"
+            indicatorProgress.progress = 0
+            indicatorProgress.progressTintList = ColorStateList.valueOf(0xFF64748B.toInt())
+            indicatorProgress.progressBackgroundTintList = ColorStateList.valueOf(0xFFDCE3EA.toInt())
+            indicatorCard.background = indicatorBackground(0xFFF1F5F9.toInt())
+            indicatorValue.setTextColor(0xFF64748B.toInt())
+            indicatorLevel.setTextColor(0xFF475569.toInt())
+            return
+        }
+
+        val safeScore = score.coerceIn(0, 100)
+        val fillColor = when {
+            safeScore <= 25 -> 0xFF16A34A.toInt()  // green
+            safeScore < 75 -> 0xFF2563EB.toInt()   // blue
+            safeScore < 90 -> 0xFFF97316.toInt()  // orange
+            else -> 0xFFDC2626.toInt()            // red
+        }
+        val backgroundColor = when {
+            safeScore <= 25 -> 0xFFDCFCE7.toInt()
+            safeScore < 75 -> 0xFFDBEAFE.toInt()
+            safeScore < 90 -> 0xFFFFEDD5.toInt()
+            else -> 0xFFFEE2E2.toInt()
+        }
+        indicatorValue.text = "$safeScore/100 · $safeScore%"
+        indicatorValue.setTextColor(fillColor)
+        indicatorLevel.text = "مستوى المؤشر: ${ProxyIndicatorScoring.indicatorBand(safeScore)}"
+        indicatorLevel.setTextColor(0xFF334155.toInt())
+        indicatorProgress.progress = safeScore
+        indicatorProgress.progressTintList = ColorStateList.valueOf(fillColor)
+        indicatorProgress.progressBackgroundTintList = ColorStateList.valueOf(0xFFD1D5DB.toInt())
+        indicatorCard.background = indicatorBackground(backgroundColor)
+    }
+
+    private fun indicatorBackground(color: Int) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(14).toFloat()
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun openDatabasePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
