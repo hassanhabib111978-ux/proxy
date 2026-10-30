@@ -27,7 +27,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-internal data class IpIpIntelEntry(val cidr: String, val category: String, val source: String)
+internal data class IpIntelEntry(val cidr: String, val category: String, val source: String)
 private data class LocalReport(
     val vpn: Boolean,
     val transports: List<String>,
@@ -45,7 +45,7 @@ class MainActivity : Activity() {
     private lateinit var indicatorLevel: TextView
     private lateinit var indicatorProgress: ProgressBar
     private val dbFile by lazy { File(filesDir, "proxyguard-ip-intel.csv") }
-    private val entries = mutableListOf<IpIpIntelEntry>()
+    private val entries = mutableListOf<IpIntelEntry>()
     private var databaseLoadError: String? = null
 
     companion object {
@@ -347,7 +347,7 @@ class MainActivity : Activity() {
         return decoder.decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
     }
 
-    private fun parseDatabaseCsv(rawText: String): List<IpIpIntelEntry> =
+    private fun parseDatabaseCsv(rawText: String): List<IpIntelEntry> =
         IpIntelDatabase.parseCsv(rawText)
 
     private fun csvCell(value: String): String =
