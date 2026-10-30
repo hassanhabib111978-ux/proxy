@@ -3,7 +3,7 @@
 ProxyGuard has two separate implementations with different privacy and network behavior:
 
 - **Legacy Web MVP (0.1.1):** browser/server demonstration that uses external IP and STUN services as described below.
-- **Android local-first MVP (0.3.0):** native Android app intended to perform its initial diagnostics entirely on-device, without a ProxyGuard backend or internet permission.
+- **Android local-first MVP (0.3.1):** native Android app intended to perform its initial diagnostics entirely on-device, without a ProxyGuard backend or internet permission.
 
 Neither edition guarantees anonymity or reproduces every website's proxy-detection systems.
 
@@ -50,4 +50,4 @@ A native Android MVP is now scaffolded in [`android/`](android/). Unlike the ori
 
 See [Android build and limitations](android/README.md) and the [local-first architecture decision](docs/android-local-first-plan.md). A GitHub Actions workflow builds a debug APK on changes to the Android project; download the APK from the successful workflow run's artifact named `proxyguard-debug-apk`.
 
-The Android MVP currently observes Android-reported VPN transport, network transports, configured DNS resolvers, and a platform-visible proxy, and checks a user-supplied IP against a locally imported CIDR CSV. It does not discover public egress IP offline, perform a DNS leak test, or guarantee detection of every proxy.
+The Android app currently observes Android-reported VPN transport, network transports, configured DNS resolvers, and a platform-visible proxy, and checks a user-supplied IP against a locally imported CIDR CSV. It does not discover public egress IP offline, perform a DNS leak test, or guarantee detection of every proxy.
