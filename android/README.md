@@ -1,4 +1,4 @@
-# ProxyGuard Android 0.2.1 — local-first MVP
+# ProxyGuard Android 0.2.2 — local-first MVP
 
 This is a native Android application scaffold. It does not use a backend, analytics SDK, remote IP API, or network permission.
 
@@ -31,6 +31,8 @@ The app displays two different detection/classification indicators:
 
 - **Device proxy/tunnel detection strength:** derived only from an Android-visible active VPN transport and/or a system HTTP/SOCKS proxy exposed through `ProxySelector`. The prototype displays 75/100 for a visible VPN, 90/100 for a visible system proxy, and 100/100 when both are visible. This is a fixed heuristic describing the strength of the local detection signal; it is not a maliciousness, trust, or safety score.
 - **Manual IP proxy-classification index:** available only when the entered IP matches an imported CIDR row with a category recognized by the prototype. The current heuristic weights residential proxy at 95/100, proxy at 90/100, Tor/exit node at 88/100, VPN at 82/100, and hosting/datacenter/cloud at 35/100 (weak infrastructure evidence, not proof of a proxy). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
+
+The app presents each available numeric index in a colored meter: **0–25 green (low)**, **26–74 blue (moderate)**, **75–89 orange (high)**, and **90–100 red (very high)**. If there is no qualifying observation or no matching supported IP category, the meter shows "unavailable" in gray rather than assigning 0%.
 
 The displayed percent sign is only a 0–100 index scale. **It is not a calibrated probability**: 90/100 does not mean a 90% chance that the address is dangerous, malicious, or even a proxy. The separate security-risk/abuse score is currently unavailable because this offline prototype does not include a verified abuse, malware, or blocklist dataset. Imported feeds are not authenticated or freshness-checked in this prototype, so source confidence is limited. A hosting/datacenter classification alone does not prove that an address is a proxy. Absence of a match does not mean safe.
 
