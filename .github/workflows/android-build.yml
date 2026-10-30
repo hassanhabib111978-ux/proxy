@@ -11,6 +11,10 @@ on:
       - ".github/workflows/android-build.yml"
   workflow_dispatch:
 
+concurrency:
+  group: proxyguard-android-build
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -34,8 +38,26 @@ jobs:
       - name: Restore persistent debug signing key
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
+          path: ~/.android/proxyguard-debug.keystore
           key: proxyguard-debug-signing-v1
+
+      - name: Create debug signing key when cache is empty
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.android"
+          KEYSTORE="$HOME/.android/proxyguard-debug.keystore"
+          if [ ! -f "$KEYSTORE" ]; then
+            keytool -genkeypair -v \
+              -keystore "$KEYSTORE" \
+              -storepass android \
+              -alias proxyguard-debug \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=ProxyGuard Test,O=ProxyGuard,C=US"
+          fi
+          echo "PROXYGUARD_DEBUG_KEYSTORE=$KEYSTORE" >> "$GITHUB_ENV"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
