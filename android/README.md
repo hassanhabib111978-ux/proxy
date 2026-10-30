@@ -1,8 +1,8 @@
-# ProxyGuard Android 0.3.1 — local-first diagnostic MVP
+# ProxyGuard Android 0.4.0 — pre-use proxy scanner
 
 ## Release status
 
-Version **0.3.1** is an engineering/hardening release candidate for testing. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
+Version **0.4.0** adds a user-initiated proxy endpoint test and reputation lookup. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
 
 ## Current behavior
 
@@ -61,7 +61,7 @@ The workflow runs `:app:testDebugUnitTest` and builds a debug APK. The downloada
 
 ## Privacy
 
-The Android build requests `ACCESS_NETWORK_STATE` and intentionally omits `INTERNET`. It has no account, telemetry, analytics, remote logging, or background update service. The user chooses when to import a CSV. The dataset is kept in the app's private files directory.
+The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs until the user taps the pre-use proxy scan button. The app connects to the entered proxy, opens an HTTPS tunnel to api.ipify.org to discover the exit IP, then sends only that exit IP to ProxyCheck.io over a direct HTTPS connection for reputation data. Proxy username/password are not sent to the reputation provider, are not persisted by the app, and are cleared from the form after the scan. ProxyCheck.io may process the submitted exit IP under its own privacy policy. The no-key service allowance is limited and can change; current published documentation states 100 daily queries for unregistered users. The legacy CSV importer remains available but is not the source of the live risk percentage.
 
 ## Production gates — not yet completed
 
@@ -73,3 +73,14 @@ The Android build requests `ACCESS_NETWORK_STATE` and intentionally omits `INTER
 6. **Commercial readiness:** publish methodology and limitations, privacy notice, terms, support process, data-retention policy, license register, and customer-facing incident/update policy. Validate willingness to pay before introducing billing.
 
 No “near-zero error” or universal detection claim is acceptable until measured against representative, independently labeled test data. Even then, publish the measured rates and test conditions rather than promising zero errors.
+
+
+## Pre-use proxy scan (0.4.0)
+
+The user can enter a proxy host, port, protocol (HTTP, HTTPS, SOCKS5), and optional username/password. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication). It then requests the public exit IP through the tested tunnel and queries ProxyCheck.io for its IP risk score and proxy/VPN classification.
+
+The displayed percentage is the upstream provider's **IP risk score**, shown as a practical risk/detectability indicator. It is **not** a calibrated probability that a particular website will detect or block the proxy. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
+
+Color bands: 0–19 green, 20–39 yellow-green, 40–59 yellow, and 60–100 red with progressively darker red at higher scores. The 60% threshold is the requested visual warning threshold; it is not a universal blocking threshold.
+
+The exit IP is disclosed to ProxyCheck.io for lookup. Proxy host, port, and credentials are not included in that reputation request. The app currently uses the provider's no-key endpoint; availability, query limits, response fields, and terms are controlled by the provider and must be reviewed before commercial launch. No guarantee is made that every proxy type, authentication scheme, DNS leak, WebRTC leak, or website-specific detection method is covered.
