@@ -58,6 +58,17 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(36, 42, 36, 32)
             setBackgroundColor(0xFFF4F7FB.toInt())
+            // Android 15 enforces edge-to-edge for apps targeting API 35.
+            // Keep the content clear of status/navigation bars on older and newer releases.
+            setOnApplyWindowInsetsListener { view, insets ->
+                view.setPadding(
+                    36 + insets.systemWindowInsetLeft,
+                    42 + insets.systemWindowInsetTop,
+                    36 + insets.systemWindowInsetRight,
+                    32 + insets.systemWindowInsetBottom
+                )
+                insets
+            }
         }
         val scroll = ScrollView(this)
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
