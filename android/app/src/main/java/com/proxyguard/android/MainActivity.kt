@@ -34,12 +34,6 @@ private data class LocalReport(
     val databaseCount: Int
 )
 
-private data class CategoryScore(
-    val score: Int,
-    val label: String,
-    val reason: String
-)
-
 class MainActivity : Activity() {
     private lateinit var output: TextView
     private lateinit var ipInput: EditText
@@ -145,12 +139,7 @@ class MainActivity : Activity() {
                 ?.address()?.toString()
         } catch (_: Exception) { null }
         val report = LocalReport(vpn, transports, dns, proxy, entries.size)
-        val configScore = when {
-            report.vpn && report.systemProxy != null -> 100
-            report.systemProxy != null -> 90
-            report.vpn -> 75
-            else -> null
-        }
+        val configScore = ProxyIndicatorScoring.deviceSignalScore(report.vpn, report.systemProxy != null)
         output.text = buildString {
             appendLine("نتيجة الفحص المحلي")
             appendLine("اتصال نشط: ${if (network == null) "غير متاح" else "نعم"}")
@@ -166,7 +155,7 @@ class MainActivity : Activity() {
                 appendLine("النتيجة: غير محسوبة — لم تظهر إشارة VPN أو بروكسي ضمن المعلومات التي يتيحها Android.")
                 appendLine("هذا لا يثبت خلو الاتصال من البروكسي أو VPN.")
             } else {
-                appendLine("المؤشر: $configScore/100 ($configScore%) — ${indicatorBand(configScore)}")
+                appendLine("المؤشر: $configScore/100 ($configScore%) — ${ProxyIndicatorScoring.indicatorBand(configScore)}")
                 if (report.vpn) appendLine("الدليل: Android يبلغ عن اتصال VPN نشط.")
                 if (report.systemProxy != null) appendLine("الدليل: إعداد بروكسي نظام ظاهر: ${report.systemProxy}.")
             }
@@ -196,7 +185,7 @@ class MainActivity : Activity() {
         }
 
         val scoredMatches = matches.mapNotNull { entry ->
-            scoreForCategory(entry.category)?.let { entry to it }
+            ProxyIndicatorScoring.scoreForCategory(entry.category)?.let { entry to it }
         }
         output.text = buildString {
             appendLine("فحص عنوان IP: $raw")
@@ -218,41 +207,6 @@ class MainActivity : Activity() {
             appendLine()
             appendLine("هذه درجة مؤشر تصنيفي تجريبي وليست احتمالاً إحصائياً ولا نسبة خطورة.")
         }
-    }
-
-    private fun scoreForCategory(rawCategory: String): CategoryScore? {
-        val category = rawCategory.trim().lowercase()
-            .replace('_', ' ')
-            .replace('-', ' ')
-        val hasProxy = category.contains("proxy") ||
-            category.contains("بروكسي") ||
-            category.contains("وكيل") ||
-            category.contains("خادم وسيط")
-
-        return when {
-            (category.contains("residential") || category.contains("سكني")) && hasProxy ->
-                CategoryScore(95, "قوية جداً", "تصنيف القاعدة يشير صراحةً إلى بروكسي سكني.")
-            hasProxy ->
-                CategoryScore(90, "قوية", "تصنيف القاعدة يشير صراحةً إلى عنوان بروكسي أو خادم وسيط.")
-            (category == "tor" || category.contains("tor exit") || category.contains("tor node") || category.contains("exit node") || category.contains("عقدة خروج") || category.contains("تور")) ->
-                CategoryScore(88, "قوية", "تصنيف القاعدة يشير إلى Tor أو عقدة خروج.")
-            category.contains("vpn") || category.contains("في بي ان") ->
-                CategoryScore(82, "قوية", "تصنيف القاعدة يشير إلى عنوان VPN.")
-            category.contains("datacenter") || category.contains("data center") ||
-                category.contains("hosting") || category.contains("cloud") ||
-                category.contains("مركز بيانات") || category.contains("استضافة") ||
-                category.contains("سحابي") ->
-                CategoryScore(35, "ضعيفة", "العنوان ضمن بنية استضافة أو مركز بيانات؛ هذا دليل بنية ضعيف ولا يثبت أنه بروكسي.")
-            else -> null
-        }
-    }
-
-    private fun indicatorBand(score: Int): String = when {
-        score >= 95 -> "قوية جداً"
-        score >= 85 -> "قوية"
-        score >= 60 -> "واضحة"
-        score >= 30 -> "ضعيفة"
-        else -> "ضعيفة جداً"
     }
 
     private fun openDatabasePicker() {
