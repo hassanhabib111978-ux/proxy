@@ -23,13 +23,13 @@ class ProxyIndicatorScoringTest {
         assertEquals(90, ProxyIndicatorScoring.scoreForCategory("proxy")?.score)
         assertEquals(88, ProxyIndicatorScoring.scoreForCategory("Tor exit")?.score)
         assertEquals(82, ProxyIndicatorScoring.scoreForCategory("VPN")?.score)
-        assertEquals(35, ProxyIndicatorScoring.scoreForCategory("datacenter")?.score)
+        assertEquals(20, ProxyIndicatorScoring.scoreForCategory("datacenter")?.score)
     }
 
     @Test
     fun datacenterIsOnlyAWeakInfrastructureSignal() {
         val result = ProxyIndicatorScoring.scoreForCategory("hosting")
-        assertEquals(35, result?.score)
+        assertEquals(20, result?.score)
         assertEquals("ضعيفة", result?.label)
     }
 

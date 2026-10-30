@@ -30,6 +30,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Cache the test-build debug keystore so repeated CI APKs remain update-compatible.
+      - name: Restore persistent debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: proxyguard-debug-signing-v1
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -68,10 +75,15 @@ jobs:
       - name: Assemble debug APK
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Generate APK checksum
+        run: sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/app-debug.apk.sha256
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: proxyguard-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: proxyguard-android-0.3.0-debug
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30

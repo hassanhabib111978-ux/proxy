@@ -1,4 +1,4 @@
-# ProxyGuard Android 0.2.2 — local-first MVP
+# ProxyGuard Android 0.3.0 — local-first MVP
 
 This is a native Android application scaffold. It does not use a backend, analytics SDK, remote IP API, or network permission.
 
@@ -30,7 +30,7 @@ No server or API key is required to build or run this version. Gradle/Android Gr
 The app displays two different detection/classification indicators:
 
 - **Device proxy/tunnel detection strength:** derived only from an Android-visible active VPN transport and/or a system HTTP/SOCKS proxy exposed through `ProxySelector`. The prototype displays 75/100 for a visible VPN, 90/100 for a visible system proxy, and 100/100 when both are visible. This is a fixed heuristic describing the strength of the local detection signal; it is not a maliciousness, trust, or safety score.
-- **Manual IP proxy-classification index:** available only when the entered IP matches an imported CIDR row with a category recognized by the prototype. The current heuristic weights residential proxy at 95/100, proxy at 90/100, Tor/exit node at 88/100, VPN at 82/100, and hosting/datacenter/cloud at 35/100 (weak infrastructure evidence, not proof of a proxy). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
+- **Manual IP proxy-classification index:** available only when the entered IP matches an imported CIDR row with a category recognized by the prototype. The current heuristic weights residential proxy at 95/100, proxy at 90/100, Tor/exit node at 88/100, VPN at 82/100, and hosting/datacenter/cloud at 20/100 (weak infrastructure evidence, not proof of a proxy). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
 
 The app presents each available numeric index in a colored meter: **0–25 green (low)**, **26–74 blue (moderate)**, **75–89 orange (high)**, and **90–100 red (very high)**. If there is no qualifying observation or no matching supported IP category, the meter shows "unavailable" in gray rather than assigning 0%.
 
@@ -38,7 +38,7 @@ The displayed percent sign is only a 0–100 index scale. **It is not a calibrat
 
 ## Automated checks
 
-GitHub Actions runs `:app:testDebugUnitTest` before assembling the APK. The current unit tests cover fixed device-signal weights, recognized category weights, unknown-category handling and indicator-band boundaries. CIDR parsing/matching, CSV import failure cases and device behavior still require separate tests.
+GitHub Actions runs `:app:testDebugUnitTest` before assembling the APK. The current unit tests cover fixed device-signal weights, recognized category weights, unknown-category handling, indicator-band boundaries, IPv4/IPv6 CIDR matching, invalid literal rejection, and quoted CSV parsing/validation. Real-device behavior still requires separate testing.
 
 ## Deliberate limitations
 - No public-egress IP lookup: this would require contacting an external endpoint or running a user-controlled endpoint.
@@ -49,8 +49,8 @@ GitHub Actions runs `:app:testDebugUnitTest` before assembling the APK. The curr
 - An absent local match means "not found in this database", not "safe".
 
 ## Next engineering gates
-1. Add a robust quoted-CSV parser and signed database manifest with freshness metadata.
-2. Verify dataset licensing, provenance, update URL and integrity/signature before bundling any feed.
-3. Add unit tests for IPv4/IPv6 CIDR matching and import limits.
-4. Add a dedicated UI for database date, source, record count and stale status.
-5. Build and test APK on real Android devices and multiple Android versions.
+1. Add a signed database manifest with source provenance and freshness metadata before enabling remote updates.
+2. Verify dataset licensing, publisher identity, signature, expiry, schema, record limits and integrity before replacing a local database.
+3. Add a dedicated UI for database source, import date, record count and stale status.
+4. Test the app on real Android devices and multiple Android versions.
+5. Prepare a separate production release-signing key; the cached CI debug key is for test distribution only and is not a Google Play release key.

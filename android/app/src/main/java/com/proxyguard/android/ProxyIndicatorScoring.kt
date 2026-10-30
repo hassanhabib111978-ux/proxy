@@ -47,7 +47,7 @@ internal object ProxyIndicatorScoring {
                 category.contains("hosting") || category.contains("cloud") ||
                 category.contains("مركز بيانات") || category.contains("استضافة") ||
                 category.contains("سحابي") ->
-                CategoryScore(35, "ضعيفة", "العنوان ضمن بنية استضافة أو مركز بيانات؛ هذا دليل بنية ضعيف ولا يثبت أنه بروكسي.")
+                CategoryScore(20, "ضعيفة", "العنوان ضمن بنية استضافة أو مركز بيانات؛ هذا دليل بنية ضعيف ولا يثبت أنه بروكسي.")
             else -> null
         }
     }

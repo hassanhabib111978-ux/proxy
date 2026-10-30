@@ -17,7 +17,6 @@ import android.widget.TextView
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
-import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.Proxy
 import java.net.ProxySelector
@@ -28,7 +27,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-private data class IntelEntry(val cidr: String, val category: String, val source: String)
+internal data class IpIntelEntry(val cidr: String, val category: String, val source: String)
 private data class LocalReport(
     val vpn: Boolean,
     val transports: List<String>,
@@ -46,13 +45,12 @@ class MainActivity : Activity() {
     private lateinit var indicatorLevel: TextView
     private lateinit var indicatorProgress: ProgressBar
     private val dbFile by lazy { File(filesDir, "proxyguard-ip-intel.csv") }
-    private val entries = mutableListOf<IntelEntry>()
+    private val entries = mutableListOf<IpIntelEntry>()
     private var databaseLoadError: String? = null
 
     companion object {
         private const val REQUEST_DATABASE = 41
         private const val MAX_DATABASE_BYTES = 5 * 1024 * 1024
-        private const val MAX_DATABASE_ENTRIES = 100_000
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -349,46 +347,17 @@ class MainActivity : Activity() {
         return decoder.decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
     }
 
-    // This deliberately supports a simple, unquoted CSV schema only:
-    // cidr,category,source. Quoted or multiline CSV is rejected, never guessed.
-    private fun parseDatabaseCsv(rawText: String): List<IntelEntry> {
-        val text = rawText.removePrefix("\uFEFF")
-        val lines = text.lineSequence().toList()
-        require(lines.firstOrNull()?.trim()?.lowercase() == "cidr,category,source") {
-            "صيغة الملف غير صحيحة؛ يجب أن يبدأ بالعناوين cidr,category,source"
-        }
-        val parsed = ArrayList<IntelEntry>()
-        lines.drop(1).forEachIndexed { index, rawLine ->
-            val lineNumber = index + 2
-            if (rawLine.isBlank()) return@forEachIndexed
-            require(!rawLine.contains('"')) { "علامات الاقتباس غير مدعومة في السطر $lineNumber" }
-            val columns = rawLine.split(',', limit = 4).map { it.trim() }
-            require(columns.size in 2..3) { "عدد الأعمدة غير صحيح في السطر $lineNumber" }
-            require(validCidr(columns[0])) { "عنوان CIDR غير صالح في السطر $lineNumber" }
-            val category = columns[1]
-            val source = columns.getOrElse(2) { "مستورد محلياً" }
-            require(isSafeLabel(category, 80)) { "التصنيف فارغ أو طويل أو يحتوي محارف تحكم في السطر $lineNumber" }
-            require(isSafeLabel(source, 120)) { "المصدر طويل أو يحتوي محارف تحكم في السطر $lineNumber" }
-            parsed.add(IntelEntry(columns[0], category, source))
-            require(parsed.size <= MAX_DATABASE_ENTRIES) { "عدد السجلات يتجاوز الحد الأقصى البالغ 100000" }
-        }
-        require(parsed.isNotEmpty()) { "لا يحتوي الملف على سجلات صالحة" }
-        return parsed
-    }
-
-    private fun isSafeLabel(value: String, maxLength: Int): Boolean =
-        value.isNotBlank() &&
-            value.length <= maxLength &&
-            value.none { it.isISOControl() || it == ',' || it == '"' }
+    private fun parseDatabaseCsv(rawText: String): List<IpIntelEntry> =
+        IpIntelDatabase.parseCsv(rawText)
 
     private fun persistDatabase(parsed: List<IntelEntry>) {
         val temporary = File(filesDir, "proxyguard-ip-intel.csv.tmp")
         val csv = buildString {
             appendLine("cidr,category,source")
             parsed.forEach { entry ->
-                append(entry.cidr).append(',')
-                    .append(entry.category).append(',')
-                    .append(entry.source).append('\n')
+                append(csvCell(entry.cidr)).append(',')
+                    .append(csvCell(entry.category)).append(',')
+                    .append(csvCell(entry.source)).append('\n')
             }
         }
         try {
@@ -408,43 +377,12 @@ class MainActivity : Activity() {
         }
     }
 
-    // Parse numeric literals only. Never resolve user/imported hostnames via DNS.
-    private fun parseIpLiteral(value: String): InetAddress? {
-        if (value.isBlank() || value.contains("%")) return null
-        if (value.contains(":")) {
-            if (!value.matches(Regex("[0-9a-fA-F:.]+"))) return null
-            return runCatching { InetAddress.getByName(value) }.getOrNull()
-                ?.takeIf { it.address.size == 16 }
-        }
-        val octets = value.split(".")
-        if (octets.size != 4 || octets.any { it.isEmpty() || it.any { ch -> ch !in '0'..'9' } }) return null
-        val numbers = octets.map { it.toIntOrNull() ?: return null }
-        if (numbers.any { it !in 0..255 }) return null
-        if (octets.indices.any { octets[it].length > 1 && octets[it].startsWith("0") }) return null
-        return runCatching { InetAddress.getByAddress(numbers.map { it.toByte() }.toByteArray()) }.getOrNull()
-    }
+    private fun parseIpLiteral(value: String): InetAddress? =
+        IpIntelDatabase.parseIpLiteral(value)
 
-    private fun validCidr(value: String): Boolean {
-        val parts = value.split("/")
-        if (parts.size != 2) return false
-        val address = parseIpLiteral(parts[0]) ?: return false
-        val prefix = parts[1].toIntOrNull() ?: return false
-        return prefix in 0..(if (address is Inet4Address) 32 else 128)
-    }
+    private fun validCidr(value: String): Boolean =
+        IpIntelDatabase.validCidr(value)
 
-    private fun cidrContains(cidr: String, candidate: InetAddress): Boolean {
-        val parts = cidr.split("/")
-        val base = parseIpLiteral(parts[0]) ?: return false
-        if (base.address.size != candidate.address.size) return false
-        val prefix = parts[1].toIntOrNull() ?: return false
-        val fullBytes = prefix / 8
-        val remainingBits = prefix % 8
-        for (i in 0 until fullBytes) if (base.address[i] != candidate.address[i]) return false
-        if (remainingBits > 0) {
-            val mask = (0xFF shl (8 - remainingBits)) and 0xFF
-            if ((base.address[fullBytes].toInt() and 0xFF and mask) !=
-                (candidate.address[fullBytes].toInt() and 0xFF and mask)) return false
-        }
-        return true
-    }
+    private fun cidrContains(cidr: String, candidate: InetAddress): Boolean =
+        IpIntelDatabase.cidrContains(cidr, candidate)
 }
