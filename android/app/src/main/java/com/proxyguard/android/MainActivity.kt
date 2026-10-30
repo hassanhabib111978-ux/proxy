@@ -86,7 +86,7 @@ class MainActivity : Activity() {
             setTextColor(0xFF10243A.toInt())
         }
         val subtitle = TextView(this).apply {
-            text = "فحص محلي لمؤشرات مخاطر الاتصال"
+            text = "فحص محلي لمؤشرات VPN وProxy"
             textSize = 16f
             setTextColor(0xFF526579.toInt())
         }
