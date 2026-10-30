@@ -2,15 +2,20 @@ package com.proxyguard.android
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import android.widget.TextView
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -24,6 +29,7 @@ import java.nio.charset.CodingErrorAction
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.Executors
 
 internal data class IpIntelEntry(val cidr: String, val category: String, val source: String)
 private data class LocalReport(
@@ -41,6 +47,14 @@ class MainActivity : Activity() {
     private lateinit var indicatorTitle: TextView
     private lateinit var indicatorValue: TextView
     private lateinit var indicatorLevel: TextView
+    private lateinit var proxyHostInput: EditText
+    private lateinit var proxyPortInput: EditText
+    private lateinit var proxyProtocolSpinner: Spinner
+    private lateinit var proxyUsernameInput: EditText
+    private lateinit var proxyPasswordInput: EditText
+    private lateinit var proxyScanButton: Button
+    private val scanExecutor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val dbFile by lazy { File(filesDir, "proxyguard-ip-intel.csv") }
     private val entries = mutableListOf<IpIntelEntry>()
     private var databaseLoadError: String? = null
@@ -91,6 +105,38 @@ class MainActivity : Activity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             setSingleLine(true)
         }
+        proxyHostInput = EditText(this).apply {
+            hint = "عنوان البروكسي أو اسم المضيف"
+            textSize = 16f
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setSingleLine(true)
+        }
+        proxyPortInput = EditText(this).apply {
+            hint = "المنفذ (مثلاً 8080 أو 1080)"
+            textSize = 16f
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true)
+        }
+        proxyProtocolSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, arrayOf("HTTP", "HTTPS", "SOCKS5")).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+        }
+        proxyUsernameInput = EditText(this).apply {
+            hint = "اسم المستخدم (اختياري)"
+            textSize = 16f
+            setSingleLine(true)
+        }
+        proxyPasswordInput = EditText(this).apply {
+            hint = "كلمة المرور (اختيارية)"
+            textSize = 16f
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setSingleLine(true)
+        }
+        proxyScanButton = Button(this).apply {
+            text = "افحص البروكسي قبل الاستخدام"
+            setOnClickListener { runProxyScan() }
+        }
         val scan = Button(this).apply {
             text = "افحص إعدادات هذا الجهاز"
             setOnClickListener { runLocalScan() }
@@ -137,11 +183,11 @@ class MainActivity : Activity() {
             setPadding(0, 24, 0, 24)
         }
         val privacy = TextView(this).apply {
-            text = "الخصوصية: لا يتصل هذا الإصدار بخوادم خارجية ولا يرسل بيانات الفحص. فحص السمعة يعتمد فقط على قاعدة البيانات التي تستوردها. عرض خوادم DNS ليس اختباراً لتسرّب DNS."
+            text = "الخصوصية: يتصل فحص البروكسي بخدمة اختبار عنوان IP ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة. لا تُرسل بيانات اعتماد البروكسي إلى خدمة السمعة ولا تُحفظ في التطبيق. قد يعالج مزوّد السمعة عنوان IP وفق سياسته. عرض DNS ليس اختبار تسريب DNS."
             textSize = 13f
             setTextColor(0xFF526579.toInt())
         }
-        listOf(title, subtitle, ipInput, scan, checkIp, import, indicatorCard, output, privacy).forEach {
+        listOf(title, subtitle, proxyHostInput, proxyPortInput, proxyProtocolSpinner, proxyUsernameInput, proxyPasswordInput, proxyScanButton, ipInput, scan, checkIp, import, indicatorCard, output, privacy).forEach {
             content.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 bottomMargin = 18
             })
@@ -150,6 +196,95 @@ class MainActivity : Activity() {
         root.addView(scroll)
         setContentView(root)
         runLocalScan()
+    }
+
+    private fun runProxyScan() {
+        val host = proxyHostInput.text.toString().trim()
+        val port = proxyPortInput.text.toString().trim().toIntOrNull()
+        val protocol = when (proxyProtocolSpinner.selectedItem?.toString()) {
+            "HTTPS" -> ProxyProtocol.HTTPS
+            "SOCKS5" -> ProxyProtocol.SOCKS5
+            else -> ProxyProtocol.HTTP
+        }
+        if (host.isBlank() || port == null || port !in 1..65535) {
+            updateIndicator("بيانات البروكسي", "بيانات غير مكتملة", "أدخل عنوان البروكسي ورقم منفذ صحيحاً.")
+            return
+        }
+        val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
+        val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
+        if ((username == null) != (password == null)) {
+            updateIndicator("بيانات المصادقة", "بيانات غير مكتملة", "أدخل اسم المستخدم وكلمة المرور معاً أو اتركهما فارغين.")
+            return
+        }
+        val endpoint = ProxyEndpoint(host, port, protocol, username, password)
+        proxyScanButton.isEnabled = false
+        updateIndicator("فحص البروكسي", "جارٍ الفحص…", "اختبار الاتصال واستخراج عنوان الخروج ثم التحقق من سمعة IP.")
+        output.text = "يُجرى الآن اختبار البروكسي. لن تتغير إعدادات اتصال الهاتف."
+        scanExecutor.execute {
+            try {
+                val result = ProxyEndpointScanner.scan(endpoint)
+                mainHandler.post {
+                    proxyScanButton.isEnabled = true
+                    val level = when {
+                        result.riskScore < 20 -> "منخفض جداً"
+                        result.riskScore < 40 -> "منخفض"
+                        result.riskScore < 60 -> "متوسط"
+                        result.riskScore < 80 -> "مرتفع"
+                        else -> "مرتفع جداً"
+                    }
+                    val color = riskColor(result.riskScore)
+                    indicatorTitle.text = "مؤشر الخطورة وقابلية الكشف — تقديري"
+                    indicatorValue.text = "${result.riskScore}%"
+                    indicatorValue.setTextColor(color)
+                    indicatorLevel.text = "$level • ${if (result.proxyDetected) "تم رصد البروكسي في مصدر السمعة" else if (result.vpnDetected) "تم رصد VPN" else "لم يرصد المصدر Proxy/VPN"}"
+                    indicatorLevel.setTextColor(0xFF334155.toInt())
+                    indicatorCard.background = indicatorBackground(Color.argb(28, Color.red(color), Color.green(color), Color.blue(color)))
+                    output.text = buildString {
+                        appendLine("تقرير فحص البروكسي")
+                        appendLine("النتيجة: ${result.riskScore}% — $level")
+                        appendLine("عنوان IP الخارج: ${result.exitIp}")
+                        appendLine("Proxy مكتشف في قاعدة السمعة: ${if (result.proxyDetected) "نعم" else "لا"}")
+                        appendLine("VPN مكتشف: ${if (result.vpnDetected) "نعم" else "لا"}")
+                        result.networkType?.let { appendLine("نوع الشبكة: $it") }
+                        result.provider?.let { appendLine("المزوّد: $it") }
+                        result.country?.let { appendLine("رمز البلد: $it") }
+                        appendLine("مصدر السمعة: ProxyCheck.io")
+                        appendLine()
+                        appendLine("الأدلة:")
+                        result.evidence.forEach { appendLine("• $it") }
+                        appendLine()
+                        appendLine("تنبيه مهم: النسبة مؤشر خطورة صادر عن مصدر السمعة وليست احتمالاً إحصائياً مضموناً لاكتشاف البروكسي أو رفضه من كل موقع. تختلف أنظمة الكشف من موقع لآخر، وقد تتغير سمعة عنوان IP بمرور الوقت.")
+                    }
+                }
+            } catch (e: Exception) {
+                mainHandler.post {
+                    proxyScanButton.isEnabled = true
+                    updateIndicator("تعذر إكمال الفحص", "لا توجد نسبة موثوقة", e.message ?: "حدث خطأ أثناء فحص البروكسي.")
+                    output.text = e.message ?: "تعذر فحص البروكسي. تحقق من البيانات والاتصال ثم أعد المحاولة."
+                }
+            }
+        }
+    }
+
+    private fun riskColor(score: Int): Int {
+        val safe = 0xFF16A34A.toInt()
+        val yellow = 0xFFEAB308.toInt()
+        val red = 0xFFEF4444.toInt()
+        val deepRed = 0xFF7F1D1D.toInt()
+        return if (score < 60) {
+            blendColor(safe, yellow, score.coerceIn(0, 59) / 59f)
+        } else {
+            blendColor(red, deepRed, (score.coerceIn(60, 100) - 60) / 40f)
+        }
+    }
+
+    private fun blendColor(start: Int, end: Int, fraction: Float): Int {
+        val t = fraction.coerceIn(0f, 1f)
+        val a = (Color.alpha(start) + (Color.alpha(end) - Color.alpha(start)) * t).toInt()
+        val r = (Color.red(start) + (Color.red(end) - Color.red(start)) * t).toInt()
+        val g = (Color.green(start) + (Color.green(end) - Color.green(start)) * t).toInt()
+        val b = (Color.blue(start) + (Color.blue(end) - Color.blue(start)) * t).toInt()
+        return Color.argb(a, r, g, b)
     }
 
     private fun runLocalScan() {
