@@ -5,15 +5,12 @@ import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
-import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.Proxy
@@ -130,8 +127,8 @@ class MainActivity : Activity() {
     }
 
     private fun inspectIp(raw: String) {
-        val ip = try { InetAddress.getByName(raw) } catch (_: Exception) { null }
-        if (ip == null || ip.hostAddress != raw || raw.contains("%")) {
+        val ip = parseIpLiteral(raw)
+        if (ip == null) {
             output.text = "عنوان IP غير صالح. أدخل عنوان IPv4 أو IPv6 رقمياً دون اسم نطاق."
             return
         }
@@ -187,19 +184,33 @@ class MainActivity : Activity() {
         }
     }
 
+    // Parse numeric literals only. Never resolve user/imported hostnames via DNS.
+    private fun parseIpLiteral(value: String): InetAddress? {
+        if (value.isBlank() || value.contains("%")) return null
+        if (value.contains(":")) {
+            if (!value.matches(Regex("[0-9a-fA-F:.]+"))) return null
+            return runCatching { InetAddress.getByName(value) }.getOrNull()
+                ?.takeIf { it.address.size == 16 }
+        }
+        val octets = value.split(".")
+        if (octets.size != 4 || octets.any { it.isEmpty() || !it.all(Char::isDigit) }) return null
+        val numbers = octets.map { it.toIntOrNull() ?: return null }
+        if (numbers.any { it !in 0..255 }) return null
+        if (octets.indices.any { octets[it].length > 1 && octets[it].startsWith("0") }) return null
+        return runCatching { InetAddress.getByAddress(numbers.map { it.toByte() }.toByteArray()) }.getOrNull()
+    }
+
     private fun validCidr(value: String): Boolean {
         val parts = value.split("/")
         if (parts.size != 2) return false
-        val address = runCatching { InetAddress.getByName(parts[0]) }.getOrNull() ?: return false
+        val address = parseIpLiteral(parts[0]) ?: return false
         val prefix = parts[1].toIntOrNull() ?: return false
-        return prefix in 0..(if (address is Inet4Address) 32 else 128) &&
-            parts[0].all { it.isDigit() || it in ".:" } &&
-            !parts[0].contains("%")
+        return prefix in 0..(if (address is Inet4Address) 32 else 128)
     }
 
     private fun cidrContains(cidr: String, candidate: InetAddress): Boolean {
         val parts = cidr.split("/")
-        val base = runCatching { InetAddress.getByName(parts[0]) }.getOrNull() ?: return false
+        val base = parseIpLiteral(parts[0]) ?: return false
         if (base.address.size != candidate.address.size) return false
         val prefix = parts[1].toIntOrNull() ?: return false
         val fullBytes = prefix / 8
