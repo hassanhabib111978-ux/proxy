@@ -1,4 +1,4 @@
-# ProxyGuard Android — local-first MVP
+# ProxyGuard Android 0.2.1 — local-first MVP
 
 This is a native Android application scaffold. It does not use a backend, analytics SDK, remote IP API, or network permission.
 
@@ -33,6 +33,10 @@ The app displays two different detection/classification indicators:
 - **Manual IP proxy-classification index:** available only when the entered IP matches an imported CIDR row with a category recognized by the prototype. The current heuristic weights residential proxy at 95/100, proxy at 90/100, Tor/exit node at 88/100, VPN at 82/100, and hosting/datacenter/cloud at 35/100 (weak infrastructure evidence, not proof of a proxy). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
 
 The displayed percent sign is only a 0–100 index scale. **It is not a calibrated probability**: 90/100 does not mean a 90% chance that the address is dangerous, malicious, or even a proxy. The separate security-risk/abuse score is currently unavailable because this offline prototype does not include a verified abuse, malware, or blocklist dataset. Imported feeds are not authenticated or freshness-checked in this prototype, so source confidence is limited. A hosting/datacenter classification alone does not prove that an address is a proxy. Absence of a match does not mean safe.
+
+## Automated checks
+
+GitHub Actions runs `:app:testDebugUnitTest` before assembling the APK. The current unit tests cover fixed device-signal weights, recognized category weights, unknown-category handling and indicator-band boundaries. CIDR parsing/matching, CSV import failure cases and device behavior still require separate tests.
 
 ## Deliberate limitations
 - No public-egress IP lookup: this would require contacting an external endpoint or running a user-controlled endpoint.
