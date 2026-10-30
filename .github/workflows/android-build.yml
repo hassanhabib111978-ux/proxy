@@ -43,7 +43,7 @@ jobs:
             echo "Android SDK command-line tools were not found at $SDK_ROOT" >&2
             exit 1
           fi
-          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -mindepth 2 -maxdepth 2 -type f -name sdkmanager | sort -V | tail -n 1)"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
           if [ -z "$SDKMANAGER" ]; then
             echo "sdkmanager executable was not found" >&2
             exit 1
