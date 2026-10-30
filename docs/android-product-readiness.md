@@ -14,15 +14,16 @@ The product must preserve three separate concepts:
 
 Do not merge these concepts into one generic “risk %”.
 
-## Current engineering baseline (0.3.1 candidate)
+## Current engineering baseline (0.4.0 candidate)
 
-- Local-first Android APK; no backend or Internet permission.
+- Android APK with local device observations plus an opt-in, user-initiated internet-based proxy endpoint scan; no ProxyGuard-owned backend is required.
 - VPN transport and system-visible ProxySelector inspection.
 - Configured DNS resolver display, explicitly not a DNS leak test.
 - Manual IPv4/IPv6 CIDR lookup against a CSV imported by the user.
+- Pre-use HTTP/HTTPS/SOCKS5 tunnel test, exit-IP discovery via an HTTPS echo endpoint, and external IP reputation lookup.
 - CSV syntax, CIDR, size, record-count, and label validation.
 - Unit tests for IP parsing/CIDR matching and evidence-based interpretation.
-- No numeric risk score, no calibrated probability, no verified global reputation feed, no signed database update, and no real-device compatibility matrix yet.
+- The displayed percentage is an external provider's IP risk score, not a calibrated probability that every destination site will detect or block the proxy. Provider coverage and query limits apply. No independently validated model, signed ProxyGuard intelligence feed, or real-device compatibility matrix yet.
 
 ## Required work before a paid beta
 
@@ -81,3 +82,12 @@ For any future optional update feature:
 - Present provider category labels as independently verified facts.
 - Claim DNS leak testing when only resolver configuration is displayed.
 - Promise universal or near-zero detection error without measured evidence.
+
+
+## 0.4.0 pre-use scan design and caveats
+
+The app now accepts a proxy host, port, and HTTP/HTTPS/SOCKS5 protocol, verifies an HTTPS tunnel through that endpoint, obtains the observed public exit IP, and queries ProxyCheck.io for an IP risk score and proxy/VPN classification. The app does not change the phone's system proxy configuration. The exit IP is disclosed to the external reputation provider; proxy credentials are not sent to that provider and are not intentionally persisted.
+
+The user-facing 0–100 percentage is a provider-supplied IP risk score presented as a practical risk/detectability indicator. It is not a probability or a promise of how a particular site will classify the connection. A score must be withheld if the proxy tunnel or reputation lookup fails. The agreed display bands are green (0–19), yellow-green (20–39), yellow (40–59), and red (60–100), with deeper red as the score rises.
+
+Before public beta, review ProxyCheck.io terms, privacy and commercial-use permission, its current free quota, response stability, caching/freshness, and whether direct client-to-provider requests are acceptable. Add a second independent intelligence source, provider confidence/freshness display, a benchmark against real proxy endpoints and destination services, tests for authenticated proxies and TLS hostname verification, and an independently validated interpretation model. The score must not be marketed as a universal detection probability.
