@@ -1,0 +1,36 @@
+# ProxyGuard — MVP 0.1.1
+
+Privacy-aware diagnostics for signals associated with the user's own internet connection. ProxyGuard is not an anonymity guarantee and does not simulate every website's detection systems.
+
+## Included checks
+- Public egress IP lookup through ipify.
+- IP network intelligence through ipapi.is (optional server-side API key).
+- WebRTC ICE candidate type and public-address mismatch indicators.
+- Transparent heuristic risk indicator, coverage notes, and JSON report export.
+- Arabic and English responsive interface.
+
+## Important limitations
+- DNS leak testing is **not implemented** and must remain marked "not tested".
+- WebRTC differences are indicators, not proof of an IP leak.
+- IP intelligence databases can miss residential/mobile proxies and newly deployed endpoints.
+- The heuristic score is not a probability and must not be used for automated allow/deny decisions.
+
+## Requirements and run
+Node.js 20+. No runtime npm dependencies.
+
+```bash
+npm test
+npm start
+```
+
+Open `http://localhost:3000`. Optional server-side configuration: `IPAPI_IS_KEY`, `PORT`, `HOST`, and `TRUST_PROXY_HOPS` (default 0; only configure for a verified trusted proxy chain).
+
+## Privacy and security
+The browser contacts ipify and a public STUN service. The app sends the observed public IP to ipapi.is for network intelligence. These providers may process connection metadata under their own policies. ProxyGuard has no account database or report history and does not intentionally persist scan IPs. Production requires HTTPS, a verified proxy configuration, shared rate limiting for multi-instance deployments, integration tests, provider-terms review, and an independent security review.
+
+## Release gates
+1. Implement a controlled authoritative DNS probe before claiming DNS leak coverage.
+2. Add IPv4/IPv6, timeout, quota, browser and deployment integration tests.
+3. Add a second independent IP intelligence provider and freshness/provenance metadata.
+4. Replace in-memory rate limiting for multi-instance production.
+5. Review privacy notice, provider retention and commercial terms before monetization.
