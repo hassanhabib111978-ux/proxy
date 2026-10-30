@@ -25,6 +25,15 @@ Open the `android/` directory in Android Studio (JDK 17; Android SDK Platform 35
 
 No server or API key is required to build or run this version. Gradle/Android Gradle Plugin downloads may require internet during the first build.
 
+## Explainable indicators (prototype)
+
+The app displays two distinct kinds of result:
+
+- **Device proxy/tunnel indicator:** based only on an Android-visible active VPN transport and/or a system HTTP/SOCKS proxy exposed through `ProxySelector`. The heuristic display is 75/100 for a visible VPN, 90/100 for a visible system proxy, and 100/100 when both are visible. This measures how strongly the device exposes a proxy/tunnel configuration; it is not a maliciousness or safety score.
+- **Manual IP proxy-classification indicator:** only available when the entered IP matches an imported CIDR row with a recognized category. The current prototype maps residential proxy to 95/100, proxy to 90/100, Tor/exit node to 88/100, VPN to 82/100, and hosting/datacenter/cloud to 35/100 (weak infrastructure signal only). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
+
+These numbers are transparent heuristic indices, **not calibrated probabilities** (for example, 90/100 does not mean a 90% statistical chance of danger). Imported feeds are not authenticated or freshness-checked in this prototype, so source confidence is explicitly limited. A hosting/datacenter classification alone does not prove that an address is a proxy. Absence of a match does not mean safe.
+
 ## Deliberate limitations
 - No public-egress IP lookup: this would require contacting an external endpoint or running a user-controlled endpoint.
 - No remote reputation lookup: the app only compares against the database the user imported.
