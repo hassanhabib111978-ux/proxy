@@ -114,6 +114,9 @@ internal object ProxyEndpointScanner {
                 proxyTransport = (SSLSocketFactory.getDefault() as SSLSocketFactory)
                     .createSocket(raw, endpoint.host, endpoint.port, true) as SSLSocket
                 (proxyTransport as SSLSocket).soTimeout = READ_TIMEOUT_MS
+                (proxyTransport as SSLSocket).sslParameters = (proxyTransport as SSLSocket).sslParameters.apply {
+                    endpointIdentificationAlgorithm = "HTTPS"
+                }
                 (proxyTransport as SSLSocket).startHandshake()
             }
 
@@ -125,6 +128,7 @@ internal object ProxyEndpointScanner {
             val tls = (SSLSocketFactory.getDefault() as SSLSocketFactory)
                 .createSocket(proxyTransport, IP_ECHO_HOST, IP_ECHO_PORT, true) as SSLSocket
             tls.soTimeout = READ_TIMEOUT_MS
+            tls.sslParameters = tls.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
             tls.startHandshake()
             tls.getOutputStream().write(
                 ("GET / HTTP/1.1\r\nHost: $IP_ECHO_HOST\r\nAccept: text/plain\r\nConnection: close\r\nUser-Agent: ProxyGuard-Android\r\n\r\n")
@@ -283,10 +287,7 @@ internal object ProxyEndpointScanner {
         }
     }
 
-    private fun isIpLiteral(value: String): Boolean = try {
-        val address = java.net.InetAddress.getByName(value)
-        address.hostAddress == value || value.contains(':')
-    } catch (_: Exception) { false }
+    private fun isIpLiteral(value: String): Boolean = IpIntelDatabase.parseIpLiteral(value) != null
 
     private fun safeMessage(error: Exception): String =
         error.message?.take(160) ?: "خطأ اتصال غير محدد"
