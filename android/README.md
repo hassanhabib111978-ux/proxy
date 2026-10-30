@@ -57,7 +57,7 @@ Android's platform APIs do not expose every app's network path to an ordinary ap
 
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The workflow runs ` :app:testDebugUnitTest ` and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.3.1-debug`. A debug APK is for controlled testing only and is not the production release artifact.
+The workflow runs `:app:testDebugUnitTest` and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.3.1-debug`. A debug APK is for controlled testing only and is not the production release artifact.
 
 ## Privacy
 
