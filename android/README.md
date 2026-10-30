@@ -25,14 +25,14 @@ Open the `android/` directory in Android Studio (JDK 17; Android SDK Platform 35
 
 No server or API key is required to build or run this version. Gradle/Android Gradle Plugin downloads may require internet during the first build.
 
-## Explainable indicators (prototype)
+## Numeric indicators (prototype — not a security risk score)
 
-The app displays two distinct kinds of result:
+The app displays two different detection/classification indicators:
 
-- **Device proxy/tunnel indicator:** based only on an Android-visible active VPN transport and/or a system HTTP/SOCKS proxy exposed through `ProxySelector`. The heuristic display is 75/100 for a visible VPN, 90/100 for a visible system proxy, and 100/100 when both are visible. This measures how strongly the device exposes a proxy/tunnel configuration; it is not a maliciousness or safety score.
-- **Manual IP proxy-classification indicator:** only available when the entered IP matches an imported CIDR row with a recognized category. The current prototype maps residential proxy to 95/100, proxy to 90/100, Tor/exit node to 88/100, VPN to 82/100, and hosting/datacenter/cloud to 35/100 (weak infrastructure signal only). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
+- **Device proxy/tunnel detection strength:** derived only from an Android-visible active VPN transport and/or a system HTTP/SOCKS proxy exposed through `ProxySelector`. The prototype displays 75/100 for a visible VPN, 90/100 for a visible system proxy, and 100/100 when both are visible. This is a fixed heuristic describing the strength of the local detection signal; it is not a maliciousness, trust, or safety score.
+- **Manual IP proxy-classification index:** available only when the entered IP matches an imported CIDR row with a category recognized by the prototype. The current heuristic weights residential proxy at 95/100, proxy at 90/100, Tor/exit node at 88/100, VPN at 82/100, and hosting/datacenter/cloud at 35/100 (weak infrastructure evidence, not proof of a proxy). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
 
-These numbers are transparent heuristic indices, **not calibrated probabilities** (for example, 90/100 does not mean a 90% statistical chance of danger). Imported feeds are not authenticated or freshness-checked in this prototype, so source confidence is explicitly limited. A hosting/datacenter classification alone does not prove that an address is a proxy. Absence of a match does not mean safe.
+The displayed percent sign is only a 0–100 index scale. **It is not a calibrated probability**: 90/100 does not mean a 90% chance that the address is dangerous, malicious, or even a proxy. The separate security-risk/abuse score is currently unavailable because this offline prototype does not include a verified abuse, malware, or blocklist dataset. Imported feeds are not authenticated or freshness-checked in this prototype, so source confidence is limited. A hosting/datacenter classification alone does not prove that an address is a proxy. Absence of a match does not mean safe.
 
 ## Deliberate limitations
 - No public-egress IP lookup: this would require contacting an external endpoint or running a user-controlled endpoint.
