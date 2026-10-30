@@ -161,15 +161,17 @@ class MainActivity : Activity() {
             appendLine("سجلات قاعدة البيانات المحلية: ${report.databaseCount}")
             databaseLoadError?.let { appendLine("تنبيه قاعدة البيانات: $it") }
             appendLine()
-            appendLine("مؤشر رصد وسيط/نفق على الجهاز")
+            appendLine("قوة مؤشر اكتشاف وسيط/نفق على الجهاز")
             if (configScore == null) {
-                appendLine("النتيجة: غير محسوبة — لم تظهر مؤشرات وسيط أو VPN في المعلومات التي يتيحها Android.")
+                appendLine("النتيجة: غير محسوبة — لم تظهر إشارة VPN أو بروكسي ضمن المعلومات التي يتيحها Android.")
+                appendLine("هذا لا يثبت خلو الاتصال من البروكسي أو VPN.")
             } else {
-                appendLine("النتيجة: $configScore/100 ($configScore%) — ${riskBand(configScore)}")
-                if (report.vpn) appendLine("السبب: النظام يبلغ عن اتصال VPN نشط.")
-                if (report.systemProxy != null) appendLine("السبب: إعداد بروكسي نظام ظاهر: ${report.systemProxy}.")
+                appendLine("المؤشر: $configScore/100 ($configScore%) — ${indicatorBand(configScore)}")
+                if (report.vpn) appendLine("الدليل: Android يبلغ عن اتصال VPN نشط.")
+                if (report.systemProxy != null) appendLine("الدليل: إعداد بروكسي نظام ظاهر: ${report.systemProxy}.")
             }
-            appendLine("هذا مؤشر لوجود وسيط/نفق ظاهر، وليس حكماً بأن الاتصال ضار أو أن المشغّل غير موثوق.")
+            appendLine("تنبيه: هذه قوة إشارة الرصد وليست درجة خطورة أو احتمالاً إحصائياً. الأوزان ثابتة وتجريبية في هذا الإصدار.")
+            appendLine("الخطورة الأمنية أو إساءة استخدام عنوان IP: غير متاحة دون قاعدة سمعة/تهديد موثوقة.")
             appendLine()
             appendLine("سمعة عنوان IP: غير متاحة في الفحص المحلي. أدخل عنوان IP وافحصه مقابل قاعدة محلية لتقييم تصنيفه.")
             appendLine("ملاحظة: عدم ظهور إعداد بروكسي لا يثبت عدم وجود وسيط على مستوى تطبيق آخر أو الشبكة.")
@@ -185,9 +187,10 @@ class MainActivity : Activity() {
         val matches = entries.filter { cidrContains(it.cidr, ip) }
         if (matches.isEmpty()) {
             output.text = buildString {
-                appendLine("تقييم عنوان IP: غير متاح")
+                appendLine("تصنيف عنوان IP: غير متاح")
                 appendLine("لم يُعثر على تطابق في قاعدة البيانات المحلية.")
-                appendLine("النتيجة ليست 0% خطورة ولا تعني أن العنوان آمن؛ قد تكون القاعدة محدودة أو قديمة.")
+                appendLine("لا توجد نسبة 0% هنا؛ غياب التطابق لا يعني أن العنوان آمن أو خالٍ من البروكسي.")
+                appendLine("الخطورة الأمنية/إساءة الاستخدام: غير متاحة في قاعدة البيانات الحالية.")
             }
             return
         }
@@ -196,23 +199,24 @@ class MainActivity : Activity() {
             scoreForCategory(entry.category)?.let { entry to it }
         }
         output.text = buildString {
-            appendLine("تقييم عنوان IP: $raw")
+            appendLine("فحص عنوان IP: $raw")
             appendLine("تطابقات قاعدة البيانات: ${matches.size}")
             if (scoredMatches.isEmpty()) {
-                appendLine("مؤشر الاشتباه بكونه وسيطاً: غير متاح")
-                appendLine("عُثر على تصنيفات، لكن لا يوجد بينها تصنيف يدعمه نموذج التقييم الحالي؛ لن نخترع نسبة.")
+                appendLine("مؤشر تصنيف العنوان كوسيط: غير متاح")
+                appendLine("التصنيفات المطابقة لا تتضمن فئة يدعمها نموذج المؤشر الحالي؛ لا يمكن إعطاء نسبة.")
             } else {
                 val strongest = scoredMatches.maxByOrNull { it.second.score }!!.second
-                appendLine("مؤشر الاشتباه بكونه وسيطاً: ${strongest.score}/100 (${strongest.score}%)")
-                appendLine("المستوى: ${strongest.label}")
-                appendLine("أساس التقييم: ${strongest.reason}")
-                appendLine("موثوقية المصدر: محدودة — لم يتم التحقق تلقائياً من مصدر قاعدة البيانات أو حداثتها.")
+                appendLine("مؤشر تصنيف العنوان كوسيط: ${strongest.score}/100 (${strongest.score}%)")
+                appendLine("قوة إشارة التصنيف: ${strongest.label}")
+                appendLine("أساس المؤشر: ${strongest.reason}")
+                appendLine("موثوقية بيانات المصدر: محدودة — لم يتم التحقق تلقائياً من مصدر القاعدة أو حداثتها.")
             }
+            appendLine("الخطورة الأمنية أو إساءة الاستخدام: غير متاحة؛ تصنيف VPN/Proxy لا يثبت أن العنوان ضار.")
             appendLine()
             appendLine("التصنيفات المطابقة:")
             matches.take(20).forEach { appendLine("• ${it.category} — ${it.source} (${it.cidr})") }
             appendLine()
-            appendLine("النسبة مؤشر تصنيفي إرشادي وليست احتمالاً إحصائياً بأن البروكسي خطير أو ضار.")
+            appendLine("هذه درجة مؤشر تصنيفي تجريبي وليست احتمالاً إحصائياً ولا نسبة خطورة.")
         }
     }
 
@@ -227,27 +231,28 @@ class MainActivity : Activity() {
 
         return when {
             (category.contains("residential") || category.contains("سكني")) && hasProxy ->
-                CategoryScore(95, "مرتفع جداً", "تصنيف القاعدة يشير صراحةً إلى بروكسي سكني.")
+                CategoryScore(95, "قوية جداً", "تصنيف القاعدة يشير صراحةً إلى بروكسي سكني.")
             hasProxy ->
-                CategoryScore(90, "مرتفع", "تصنيف القاعدة يشير صراحةً إلى عنوان بروكسي أو خادم وسيط.")
+                CategoryScore(90, "قوية", "تصنيف القاعدة يشير صراحةً إلى عنوان بروكسي أو خادم وسيط.")
             (category == "tor" || category.contains("tor exit") || category.contains("tor node") || category.contains("exit node") || category.contains("عقدة خروج") || category.contains("تور")) ->
-                CategoryScore(88, "مرتفع", "تصنيف القاعدة يشير إلى Tor أو عقدة خروج.")
+                CategoryScore(88, "قوية", "تصنيف القاعدة يشير إلى Tor أو عقدة خروج.")
             category.contains("vpn") || category.contains("في بي ان") ->
-                CategoryScore(82, "مرتفع", "تصنيف القاعدة يشير إلى عنوان VPN.")
+                CategoryScore(82, "قوية", "تصنيف القاعدة يشير إلى عنوان VPN.")
             category.contains("datacenter") || category.contains("data center") ||
                 category.contains("hosting") || category.contains("cloud") ||
                 category.contains("مركز بيانات") || category.contains("استضافة") ||
                 category.contains("سحابي") ->
-                CategoryScore(35, "منخفض", "العنوان ضمن بنية استضافة أو مركز بيانات؛ هذا مؤشر ضعيف ولا يثبت أنه بروكسي.")
+                CategoryScore(35, "ضعيفة", "العنوان ضمن بنية استضافة أو مركز بيانات؛ هذا دليل بنية ضعيف ولا يثبت أنه بروكسي.")
             else -> null
         }
     }
 
-    private fun riskBand(score: Int): String = when {
-        score >= 85 -> "مرتفع"
-        score >= 60 -> "متوسط"
-        score >= 30 -> "منخفض"
-        else -> "ضعيف"
+    private fun indicatorBand(score: Int): String = when {
+        score >= 95 -> "قوية جداً"
+        score >= 85 -> "قوية"
+        score >= 60 -> "واضحة"
+        score >= 30 -> "ضعيفة"
+        else -> "ضعيفة جداً"
     }
 
     private fun openDatabasePicker() {
