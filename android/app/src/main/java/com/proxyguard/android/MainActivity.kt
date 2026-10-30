@@ -274,26 +274,15 @@ class MainActivity : Activity() {
         }
 
         val safeScore = score.coerceIn(0, 100)
-        val fillColor = when {
-            safeScore <= 25 -> 0xFF16A34A.toInt()  // green
-            safeScore < 75 -> 0xFF2563EB.toInt()   // blue
-            safeScore < 90 -> 0xFFF97316.toInt()  // orange
-            else -> 0xFFDC2626.toInt()            // red
-        }
-        val backgroundColor = when {
-            safeScore <= 25 -> 0xFFDCFCE7.toInt()
-            safeScore < 75 -> 0xFFDBEAFE.toInt()
-            safeScore < 90 -> 0xFFFFEDD5.toInt()
-            else -> 0xFFFEE2E2.toInt()
-        }
+        val style = ProxyIndicatorScoring.indicatorStyle(safeScore) ?: return
         indicatorValue.text = "$safeScore/100 · $safeScore%"
-        indicatorValue.setTextColor(fillColor)
-        indicatorLevel.text = "مستوى المؤشر: ${ProxyIndicatorScoring.indicatorBand(safeScore)}"
+        indicatorValue.setTextColor(style.foregroundColor)
+        indicatorLevel.text = "مستوى المؤشر: ${style.label}"
         indicatorLevel.setTextColor(0xFF334155.toInt())
         indicatorProgress.progress = safeScore
-        indicatorProgress.progressTintList = ColorStateList.valueOf(fillColor)
+        indicatorProgress.progressTintList = ColorStateList.valueOf(style.foregroundColor)
         indicatorProgress.progressBackgroundTintList = ColorStateList.valueOf(0xFFD1D5DB.toInt())
-        indicatorCard.background = indicatorBackground(backgroundColor)
+        indicatorCard.background = indicatorBackground(style.backgroundColor)
     }
 
     private fun indicatorBackground(color: Int) = GradientDrawable().apply {
