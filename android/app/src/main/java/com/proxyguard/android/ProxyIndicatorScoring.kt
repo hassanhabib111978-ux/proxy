@@ -1,69 +1,95 @@
 package com.proxyguard.android
 
-internal data class CategoryScore(
-    val score: Int,
+internal data class DeviceFinding(
     val label: String,
-    val reason: String
+    val detail: String
 )
 
-internal data class IndicatorStyle(
+internal data class CategoryClassification(
     val label: String,
-    val foregroundColor: Int,
-    val backgroundColor: Int
+    val detail: String
 )
 
 /**
- * Prototype detection weights only. These values are not calibrated probabilities
- * and must never be presented as a security-risk or maliciousness score.
+ * Evidence-first interpretation only.
+ *
+ * This class deliberately does not assign numeric scores or probabilities.
+ * A visible VPN/proxy is a technical observation, not proof of maliciousness.
+ * Imported IP categories are unverified claims until their publisher and data
+ * provenance have been independently authenticated.
  */
 internal object ProxyIndicatorScoring {
-    fun deviceSignalScore(vpn: Boolean, systemProxy: Boolean): Int? = when {
-        vpn && systemProxy -> 100
-        systemProxy -> 90
-        vpn -> 75
-        else -> null
+    fun deviceFinding(vpn: Boolean, systemProxy: Boolean): DeviceFinding = when {
+        vpn && systemProxy -> DeviceFinding(
+            "رُصد VPN وإعداد Proxy للنظام",
+            "يعرض Android مسار VPN نشطاً، كما يظهر إعداد Proxy للنظام. هذا يثبت ظهور هاتين الإشارتين للنظام فقط، ولا يثبت أن الاتصال ضار أو أن كل التطبيقات تستخدم الإعداد نفسه."
+        )
+        vpn -> DeviceFinding(
+            "رُصد اتصال VPN",
+            "يعرض Android مسار VPN نشطاً. وجود VPN ليس خطراً بحد ذاته، ولا يكشف وحده عنوان الخروج أو سمعة مزوّد الخدمة."
+        )
+        systemProxy -> DeviceFinding(
+            "رُصد إعداد Proxy للنظام",
+            "أظهر Android إعداد Proxy من خلال واجهة النظام. هذا لا يثبت أن جميع التطبيقات تمر عبره أو أن عنوانه ضار."
+        )
+        else -> DeviceFinding(
+            "لم تُرصد مؤشرات ظاهرة",
+            "لم يعرض Android في هذه اللحظة مسار VPN نشطاً أو إعداد Proxy عاماً يمكن للتطبيق قراءته. لا يعني ذلك خلو الاتصال من وسيط مخفي أو إعداد خاص بتطبيق أو بالشبكة."
+        )
     }
 
-    fun scoreForCategory(rawCategory: String): CategoryScore? {
+    fun classifyCategory(rawCategory: String): CategoryClassification? {
         val category = rawCategory.trim().lowercase()
             .replace('_', ' ')
             .replace('-', ' ')
-        val hasProxy = category.contains("proxy") ||
+            .replace(Regex("\\s+"), " ")
+
+        val hasProxy = Regex("(^|[^a-z0-9])proxy([^a-z0-9]|$)").containsMatchIn(category) ||
             category.contains("بروكسي") ||
             category.contains("وكيل") ||
             category.contains("خادم وسيط")
 
+        val residential = category.contains("residential") ||
+            category.contains("سكني")
+
+        val tor = Regex("(^|[^a-z0-9])tor([^a-z0-9]|$)").containsMatchIn(category) ||
+            category.contains("exit node") ||
+            category.contains("عقدة خروج") ||
+            category == "تور"
+
+        val vpn = Regex("(^|[^a-z0-9])vpn([^a-z0-9]|$)").containsMatchIn(category) ||
+            category.contains("في بي ان")
+
+        val hosting = category.contains("datacenter") ||
+            category.contains("data center") ||
+            category.contains("hosting") ||
+            category.contains("cloud") ||
+            category.contains("مركز بيانات") ||
+            category.contains("استضافة") ||
+            category.contains("سحابي")
+
         return when {
-            (category.contains("residential") || category.contains("سكني")) && hasProxy ->
-                CategoryScore(95, "قوية جداً", "تصنيف القاعدة يشير صراحةً إلى بروكسي سكني.")
-            hasProxy ->
-                CategoryScore(90, "قوية", "تصنيف القاعدة يشير صراحةً إلى عنوان بروكسي أو خادم وسيط.")
-            (category == "tor" || category.contains("tor exit") || category.contains("tor node") ||
-                category.contains("exit node") || category.contains("عقدة خروج") || category.contains("تور")) ->
-                CategoryScore(88, "قوية", "تصنيف القاعدة يشير إلى Tor أو عقدة خروج.")
-            category.contains("vpn") || category.contains("في بي ان") ->
-                CategoryScore(82, "قوية", "تصنيف القاعدة يشير إلى عنوان VPN.")
-            category.contains("datacenter") || category.contains("data center") ||
-                category.contains("hosting") || category.contains("cloud") ||
-                category.contains("مركز بيانات") || category.contains("استضافة") ||
-                category.contains("سحابي") ->
-                CategoryScore(20, "ضعيفة", "العنوان ضمن بنية استضافة أو مركز بيانات؛ هذا دليل بنية ضعيف ولا يثبت أنه بروكسي.")
+            hasProxy && residential -> CategoryClassification(
+                "بروكسي سكني",
+                "قاعدة البيانات المستوردة تصنف هذا النطاق كبروكسي سكني. لم يتحقق التطبيق مستقلاً من صحة هذا التصنيف أو حداثته."
+            )
+            hasProxy -> CategoryClassification(
+                "Proxy / خادم وسيط",
+                "قاعدة البيانات المستوردة تصنف هذا النطاق كبروكسي. لم يتحقق التطبيق مستقلاً من صحة هذا التصنيف أو حداثته."
+            )
+            tor -> CategoryClassification(
+                "Tor / عقدة خروج",
+                "قاعدة البيانات المستوردة تربط هذا النطاق بشبكة Tor أو عقدة خروج. هذا تصنيف تقني وليس حكماً على إساءة الاستخدام."
+            )
+            vpn -> CategoryClassification(
+                "VPN",
+                "قاعدة البيانات المستوردة تصنف هذا النطاق كعنوان VPN. وجود VPN لا يعني أن العنوان ضار."
+            )
+            hosting -> CategoryClassification(
+                "استضافة / مركز بيانات",
+                "قاعدة البيانات تصنف هذا النطاق كبنية استضافة أو مركز بيانات. هذه المعلومة وحدها لا تثبت وجود Proxy أو VPN."
+            )
             else -> null
         }
     }
-
-    /**
-     * Display bands requested for the 0–100 indicator scale:
-     * 0–25 low (green), 26–74 moderate (blue), 75–89 high (orange), 90–100 very high (red).
-     */
-    fun indicatorStyle(score: Int): IndicatorStyle? = when {
-        score !in 0..100 -> null
-        score <= 25 -> IndicatorStyle("منخفضة", 0xFF16A34A.toInt(), 0xFFDCFCE7.toInt())
-        score < 75 -> IndicatorStyle("متوسطة", 0xFF2563EB.toInt(), 0xFFDBEAFE.toInt())
-        score < 90 -> IndicatorStyle("عالية", 0xFFF97316.toInt(), 0xFFFFEDD5.toInt())
-        else -> IndicatorStyle("مرتفعة جداً", 0xFFDC2626.toInt(), 0xFFFEE2E2.toInt())
-    }
-
-    fun indicatorBand(score: Int): String =
-        indicatorStyle(score)?.label ?: "غير صالحة"
 }

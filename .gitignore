@@ -3,3 +3,19 @@ node_modules/
 .DS_Store
 coverage/
 *.log
+
+# Android / Gradle outputs and machine-local configuration
+.gradle/
+**/build/
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing material and generated release artifacts must never be committed
+*.jks
+*.keystore
+*.apk
+*.aab

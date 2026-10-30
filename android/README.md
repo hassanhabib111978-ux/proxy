@@ -1,15 +1,35 @@
-# ProxyGuard Android 0.3.0 — local-first MVP
+# ProxyGuard Android 0.4.0 — pre-use proxy scanner
 
-This is a native Android application scaffold. It does not use a backend, analytics SDK, remote IP API, or network permission.
+## Release status
 
-## Current local checks
-- Detects whether Android reports an active VPN transport.
-- Reads active network transports and configured DNS resolver addresses.
-- Attempts to display an HTTP/SOCKS proxy exposed by the platform ProxySelector.
-- Lets the user enter an IPv4/IPv6 address and compare it with an imported local CIDR database.
-- Imports CSV files through Android's document picker and stores the parsed database in app-private storage.
+Version **0.4.0** adds a user-initiated proxy endpoint test and reputation lookup. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
+
+## Current behavior
+
+The Android app performs the following checks locally:
+
+- Detects whether the active Android network reports VPN transport.
+- Reads active network transport types and configured DNS resolver addresses.
+- Attempts to read an HTTP/SOCKS proxy exposed by the platform `ProxySelector`.
+- Lets the user enter an IPv4/IPv6 address and compare it with a CSV CIDR database imported explicitly by the user.
+- Stores the imported dataset in app-private storage.
+
+The app does not need a ProxyGuard backend or internet permission for these checks.
+
+## How results are interpreted
+
+The app intentionally does **not** display a 0–100 score or percentage.
+
+- A visible VPN is reported as a VPN observation, not as a security risk.
+- A system proxy is reported only when Android exposes one through the platform API.
+- No visible signal is reported as “no visible indicators”, not “clean”, “safe”, or “proxy-free”.
+- A matching IP range is reported using the category written in the imported CSV.
+- Hosting/datacenter classification is not treated as proof of proxy use.
+- A Tor/VPN/Proxy category is not treated as proof of abuse or maliciousness.
+- An unmatched IP means only “not found in this imported dataset”.
 
 ## CSV format
+
 UTF-8 CSV with a header row:
 
 ```csv
@@ -18,39 +38,49 @@ cidr,category,source
 2001:db8::/32,hosting,Example feed
 ```
 
-Use real, licensed datasets only. The example ranges above are documentation-only reserved ranges and are not threat intelligence.
+The example ranges are documentation-only reserved ranges, not real threat intelligence. Use only datasets whose publisher, license, update policy, and intended use you have verified independently.
 
-## Build
-Open the `android/` directory in Android Studio (JDK 17; Android SDK Platform 35), allow Gradle sync, then Build > Build Bundle(s) / APK(s) > Build APK(s).
+The current importer validates CSV syntax, CIDR notation, field lengths, control characters, file size, and record count. It does **not** authenticate the publisher, validate the license, verify the data's freshness, or cryptographically verify the file. Imported source labels are untrusted metadata supplied by the CSV.
 
-No server or API key is required to build or run this version. Gradle/Android Gradle Plugin downloads may require internet during the first build.
+## What this build cannot establish
 
-## Numeric indicators (prototype — not a security risk score)
+- Public egress IP without a network endpoint or user-supplied address.
+- Current global IP reputation without a fresh intelligence dataset.
+- Whether a website will detect, block, or accept a connection.
+- DNS leakage from merely displaying configured DNS resolver addresses.
+- Every per-app proxy, tunnel, or routing configuration.
+- Whether a detected VPN/proxy is malicious, safe, or trustworthy.
 
-The app displays two different detection/classification indicators:
+Android's platform APIs do not expose every app's network path to an ordinary application. Absence of a visible setting must never be interpreted as proof that no proxy exists.
 
-- **Device proxy/tunnel detection strength:** derived only from an Android-visible active VPN transport and/or a system HTTP/SOCKS proxy exposed through `ProxySelector`. The prototype displays 75/100 for a visible VPN, 90/100 for a visible system proxy, and 100/100 when both are visible. This is a fixed heuristic describing the strength of the local detection signal; it is not a maliciousness, trust, or safety score.
-- **Manual IP proxy-classification index:** available only when the entered IP matches an imported CIDR row with a category recognized by the prototype. The current heuristic weights residential proxy at 95/100, proxy at 90/100, Tor/exit node at 88/100, VPN at 82/100, and hosting/datacenter/cloud at 20/100 (weak infrastructure evidence, not proof of a proxy). Unrecognized categories and no-match results are shown as unavailable rather than 0/100.
+## Build and automated tests
 
-The app presents each available numeric index in a colored meter: **0–25 green (low)**, **26–74 blue (moderate)**, **75–89 orange (high)**, and **90–100 red (very high)**. If there is no qualifying observation or no matching supported IP category, the meter shows "unavailable" in gray rather than assigning 0%.
+Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The displayed percent sign is only a 0–100 index scale. **It is not a calibrated probability**: 90/100 does not mean a 90% chance that the address is dangerous, malicious, or even a proxy. The separate security-risk/abuse score is currently unavailable because this offline prototype does not include a verified abuse, malware, or blocklist dataset. Imported feeds are not authenticated or freshness-checked in this prototype, so source confidence is limited. A hosting/datacenter classification alone does not prove that an address is a proxy. Absence of a match does not mean safe.
+The workflow runs `:app:testDebugUnitTest` and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.3.1-debug`. A debug APK is for controlled testing only and is not the production release artifact.
 
-## Automated checks
+## Privacy
 
-GitHub Actions runs `:app:testDebugUnitTest` before assembling the APK. The current unit tests cover fixed device-signal weights, recognized category weights, unknown-category handling, indicator-band boundaries, IPv4/IPv6 CIDR matching, invalid literal rejection, and quoted CSV parsing/validation. Real-device behavior still requires separate testing.
+The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs until the user taps the pre-use proxy scan button. The app connects to the entered proxy, opens an HTTPS tunnel to api.ipify.org to discover the exit IP, then sends only that exit IP to ProxyCheck.io over a direct HTTPS connection for reputation data. Proxy username/password are not sent to the reputation provider, are not persisted by the app, and are cleared from the form after the scan. ProxyCheck.io may process the submitted exit IP under its own privacy policy. The no-key service allowance is limited and can change; current published documentation states 100 daily queries for unregistered users. The legacy CSV importer remains available but is not the source of the live risk percentage.
 
-## Deliberate limitations
-- No public-egress IP lookup: this would require contacting an external endpoint or running a user-controlled endpoint.
-- No remote reputation lookup: the app only compares against the database the user imported.
-- No packet interception, traffic redirection, VPN service, or claim to detect every proxy.
-- Android may not expose per-app proxy configuration or all tunnel details to ordinary apps.
-- DNS resolver addresses are configuration observations, not a DNS leak test.
-- An absent local match means "not found in this database", not "safe".
+## Production gates — not yet completed
 
-## Next engineering gates
-1. Add a signed database manifest with source provenance and freshness metadata before enabling remote updates.
-2. Verify dataset licensing, publisher identity, signature, expiry, schema, record limits and integrity before replacing a local database.
-3. Add a dedicated UI for database source, import date, record count and stale status.
-4. Test the app on real Android devices and multiple Android versions.
-5. Prepare a separate production release-signing key; the cached CI debug key is for test distribution only and is not a Google Play release key.
+1. **Authenticated intelligence:** define and implement a signed manifest and authenticated dataset delivery. Verify publisher key, signature, SHA-256, schema version, generation/expiry times, record limits, license metadata, and rollback behavior before atomically replacing the active database.
+2. **Data provenance:** use only licensed, documented feeds. Keep per-source timestamps, coverage, category semantics, and update history. Reject stale, unsigned, or malformed feeds.
+3. **Test evidence:** build a labeled benchmark with independently verified proxy, VPN, Tor, hosting, mobile/residential, and ordinary ISP samples. Report false positives, false negatives, coverage, and confidence intervals by category and provider.
+4. **Device coverage:** test supported Android releases, OEM variants, Wi-Fi, mobile data, IPv4/IPv6, active VPNs, system proxy settings, captive portals, and network transitions on physical devices.
+5. **Engineering assurance:** add UI/instrumentation tests, static analysis, dependency and supply-chain checks, crash reporting only with clear consent, secure release signing, reproducible build checks, and an independent security assessment.
+6. **Commercial readiness:** publish methodology and limitations, privacy notice, terms, support process, data-retention policy, license register, and customer-facing incident/update policy. Validate willingness to pay before introducing billing.
+
+No “near-zero error” or universal detection claim is acceptable until measured against representative, independently labeled test data. Even then, publish the measured rates and test conditions rather than promising zero errors.
+
+
+## Pre-use proxy scan (0.4.0)
+
+The user can enter a proxy host, port, protocol (HTTP, HTTPS, SOCKS5), and optional username/password. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication). It then requests the public exit IP through the tested tunnel and queries ProxyCheck.io for its IP risk score and proxy/VPN classification.
+
+The displayed percentage is the upstream provider's **IP risk score**, shown as a practical risk/detectability indicator. It is **not** a calibrated probability that a particular website will detect or block the proxy. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
+
+Color bands: 0–19 green, 20–39 yellow-green, 40–59 yellow, and 60–100 red with progressively darker red at higher scores. The 60% threshold is the requested visual warning threshold; it is not a universal blocking threshold.
+
+The exit IP is disclosed to ProxyCheck.io for lookup. Proxy host, port, and credentials are not included in that reputation request. The app currently uses the provider's no-key endpoint; availability, query limits, response fields, and terms are controlled by the provider and must be reviewed before commercial launch. No guarantee is made that every proxy type, authentication scheme, DNS leak, WebRTC leak, or website-specific detection method is covered.
