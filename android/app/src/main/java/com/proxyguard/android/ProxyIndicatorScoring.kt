@@ -46,11 +46,15 @@ internal object ProxyIndicatorScoring {
         }
     }
 
+    /**
+     * Display bands requested for the 0–100 indicator scale:
+     * 0–25 low (green), 26–74 moderate (blue), 75–89 high (orange), 90–100 very high (red).
+     */
     fun indicatorBand(score: Int): String = when {
-        score >= 95 -> "قوية جداً"
-        score >= 85 -> "قوية"
-        score >= 60 -> "واضحة"
-        score >= 30 -> "ضعيفة"
-        else -> "ضعيفة جداً"
+        score !in 0..100 -> "غير صالحة"
+        score <= 25 -> "منخفضة"
+        score < 75 -> "متوسطة"
+        score < 90 -> "عالية"
+        else -> "مرتفعة جداً"
     }
 }
