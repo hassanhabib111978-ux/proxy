@@ -62,6 +62,9 @@ jobs:
       - name: Install Android platform and build tools
         run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
+      - name: Run Android unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+
       - name: Assemble debug APK
         run: gradle --no-daemon :app:assembleDebug
 
