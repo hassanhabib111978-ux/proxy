@@ -26,5 +26,7 @@ The primary deliverable is a native Android APK that performs diagnostics on-dev
 ## Database update design
 The first version accepts an explicit CSV import. A later opt-in update mechanism may download a signed manifest and compressed feed directly from a documented dataset publisher. Verify signature, hash, size, schema, expiry and license before replacing the previous database. The update should be user initiated and must not require a ProxyGuard-operated server.
 
-## Scoring
-Do not reuse the old browser score without calibration. Findings should be shown individually with source and dataset age. Avoid a single score until representative ground-truth data exists.
+## Scoring and interpretation
+The current Android prototype displays two explicitly limited heuristic indices: (1) local device detection strength for Android-visible VPN/system-proxy signals and (2) a manual IP proxy-classification index when a category in the imported CIDR list matches. These are 0–100 indicator weights, not statistical probabilities and not security-risk scores. The UI must separately say that maliciousness/abuse risk is unavailable unless a verified, licensed, sufficiently fresh threat-intelligence dataset is added. Missing data must remain "unavailable", never 0% or "safe".
+
+Before any production security-risk score is considered, define its target (abuse, malware, fraud, or proxy classification), obtain licensed datasets with source, timestamp, coverage and expiry metadata, validate them, and calibrate thresholds against representative labeled data. Do not present heuristic weights as a probability or use them for automated allow/deny decisions.
