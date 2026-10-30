@@ -152,7 +152,7 @@ internal object ProxyEndpointScanner {
             )
             "Proxy-Authorization: Basic $token\r\n"
         } else ""
-        val request = "CONNECT $IP_ECHO_HOST:$IP_ECHO_PORT HTTP/1.1\r\nHost: $IP_ECHO_HOST:$IP_ECHO_PORT\r\n$authConnection: keep-alive\r\n\r\n"
+        val request = "CONNECT $IP_ECHO_HOST:$IP_ECHO_PORT HTTP/1.1\r\nHost: $IP_ECHO_HOST:$IP_ECHO_PORT\r\n$auth$authConnection: keep-alive\r\n\r\n"
             .replace("$authConnection", "Proxy-Connection")
         socket.getOutputStream().write(request.toByteArray(StandardCharsets.US_ASCII))
         val header = readHeaders(socket.getInputStream())
