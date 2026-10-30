@@ -34,3 +34,11 @@ The browser contacts ipify and a public STUN service. The app sends the observed
 3. Add a second independent IP intelligence provider and freshness/provenance metadata.
 4. Replace in-memory rate limiting for multi-instance production.
 5. Review privacy notice, provider retention and commercial terms before monetization.
+
+## Android local-first app
+
+A native Android MVP is now scaffolded in [`android/`](android/). Unlike the original browser/server MVP, this app is designed to perform its initial diagnostics entirely on-device and intentionally has no `INTERNET` permission.
+
+See [Android build and limitations](android/README.md) and the [local-first architecture decision](docs/android-local-first-plan.md). A GitHub Actions workflow builds a debug APK on changes to the Android project; download the APK from the successful workflow run's artifact named `proxyguard-debug-apk`.
+
+The Android MVP currently observes Android-reported VPN transport, network transports, configured DNS resolvers, and a platform-visible proxy, and checks a user-supplied IP against a locally imported CIDR CSV. It does not discover public egress IP offline, perform a DNS leak test, or guarantee detection of every proxy.
