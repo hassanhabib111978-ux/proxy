@@ -6,6 +6,12 @@ internal data class CategoryScore(
     val reason: String
 )
 
+internal data class IndicatorStyle(
+    val label: String,
+    val foregroundColor: Int,
+    val backgroundColor: Int
+)
+
 /**
  * Prototype detection weights only. These values are not calibrated probabilities
  * and must never be presented as a security-risk or maliciousness score.
@@ -50,11 +56,14 @@ internal object ProxyIndicatorScoring {
      * Display bands requested for the 0–100 indicator scale:
      * 0–25 low (green), 26–74 moderate (blue), 75–89 high (orange), 90–100 very high (red).
      */
-    fun indicatorBand(score: Int): String = when {
-        score !in 0..100 -> "غير صالحة"
-        score <= 25 -> "منخفضة"
-        score < 75 -> "متوسطة"
-        score < 90 -> "عالية"
-        else -> "مرتفعة جداً"
+    fun indicatorStyle(score: Int): IndicatorStyle? = when {
+        score !in 0..100 -> null
+        score <= 25 -> IndicatorStyle("منخفضة", 0xFF16A34A.toInt(), 0xFFDCFCE7.toInt())
+        score < 75 -> IndicatorStyle("متوسطة", 0xFF2563EB.toInt(), 0xFFDBEAFE.toInt())
+        score < 90 -> IndicatorStyle("عالية", 0xFFF97316.toInt(), 0xFFFFEDD5.toInt())
+        else -> IndicatorStyle("مرتفعة جداً", 0xFFDC2626.toInt(), 0xFFFEE2E2.toInt())
     }
+
+    fun indicatorBand(score: Int): String =
+        indicatorStyle(score)?.label ?: "غير صالحة"
 }
