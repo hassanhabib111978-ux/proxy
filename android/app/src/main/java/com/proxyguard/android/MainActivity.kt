@@ -255,7 +255,9 @@ class MainActivity : Activity() {
     }
 
     private fun isSafeLabel(value: String, maxLength: Int): Boolean =
-        value.isNotBlank() && value.length <= maxLength && value.none { it.isISOControl() }
+        value.isNotBlank() &&
+            value.length <= maxLength &&
+            value.none { it.isISOControl() || it == ',' || it == '"' }
 
     private fun persistDatabase(parsed: List<IntelEntry>) {
         val temporary = File(filesDir, "proxyguard-ip-intel.csv.tmp")
