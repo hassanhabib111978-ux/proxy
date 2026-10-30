@@ -126,12 +126,14 @@ class MainActivity : Activity() {
             hint = "اسم المستخدم (اختياري)"
             textSize = 16f
             setSingleLine(true)
+            isSaveEnabled = false
         }
         proxyPasswordInput = EditText(this).apply {
             hint = "كلمة المرور (اختيارية)"
             textSize = 16f
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
+            isSaveEnabled = false
         }
         proxyScanButton = Button(this).apply {
             text = "افحص البروكسي قبل الاستخدام"
@@ -225,13 +227,9 @@ class MainActivity : Activity() {
                 val result = ProxyEndpointScanner.scan(endpoint)
                 mainHandler.post {
                     proxyScanButton.isEnabled = true
-                    val level = when {
-                        result.riskScore < 20 -> "منخفض جداً"
-                        result.riskScore < 40 -> "منخفض"
-                        result.riskScore < 60 -> "متوسط"
-                        result.riskScore < 80 -> "مرتفع"
-                        else -> "مرتفع جداً"
-                    }
+                    proxyUsernameInput.text.clear()
+                    proxyPasswordInput.text.clear()
+                    val level = ProxyRiskPresentation.level(result.riskScore)
                     val color = riskColor(result.riskScore)
                     indicatorTitle.text = "مؤشر الخطورة وقابلية الكشف — تقديري"
                     indicatorValue.text = "${result.riskScore}%"
@@ -259,6 +257,8 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 mainHandler.post {
                     proxyScanButton.isEnabled = true
+                    proxyUsernameInput.text.clear()
+                    proxyPasswordInput.text.clear()
                     updateIndicator("تعذر إكمال الفحص", "لا توجد نسبة موثوقة", e.message ?: "حدث خطأ أثناء فحص البروكسي.")
                     output.text = e.message ?: "تعذر فحص البروكسي. تحقق من البيانات والاتصال ثم أعد المحاولة."
                 }
