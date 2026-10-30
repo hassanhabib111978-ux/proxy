@@ -1,6 +1,15 @@
-# ProxyGuard — MVP 0.1.1
+# ProxyGuard
 
-Privacy-aware diagnostics for signals associated with the user's own internet connection. ProxyGuard is not an anonymity guarantee and does not simulate every website's detection systems.
+ProxyGuard has two separate implementations with different privacy and network behavior:
+
+- **Legacy Web MVP (0.1.1):** browser/server demonstration that uses external IP and STUN services as described below.
+- **Android local-first MVP (0.2.0):** native Android app intended to perform its initial diagnostics entirely on-device, without a ProxyGuard backend or internet permission.
+
+Neither edition guarantees anonymity or reproduces every website's proxy-detection systems.
+
+## Legacy Web MVP (0.1.1)
+
+The following sections describe only the original browser/server implementation, not the offline Android app.
 
 ## Included checks
 - Public egress IP lookup through ipify.
