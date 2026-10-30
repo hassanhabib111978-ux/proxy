@@ -48,6 +48,6 @@ The browser contacts ipify and a public STUN service. The app sends the observed
 
 A native Android MVP is now scaffolded in [`android/`](android/). Unlike the original browser/server MVP, this app is designed to perform its initial diagnostics entirely on-device and intentionally has no `INTERNET` permission.
 
-See [Android build and limitations](android/README.md) and the [local-first architecture decision](docs/android-local-first-plan.md). A GitHub Actions workflow builds a debug APK on changes to the Android project; download the APK from the successful workflow run's artifact named `proxyguard-debug-apk`.
+See [Android build and limitations](android/README.md) and the [local-first architecture decision](docs/android-local-first-plan.md). A GitHub Actions workflow builds a debug APK on changes to the Android project; download the APK from the successful workflow run's artifact named `proxyguard-android-0.3.1-debug`.
 
 The Android app currently observes Android-reported VPN transport, network transports, configured DNS resolvers, and a platform-visible proxy, and checks a user-supplied IP against a locally imported CIDR CSV. It does not discover public egress IP offline, perform a DNS leak test, or guarantee detection of every proxy.
