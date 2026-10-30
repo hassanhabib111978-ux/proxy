@@ -27,7 +27,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-internal data class IpIntelEntry(val cidr: String, val category: String, val source: String)
+internal data class IpIpIntelEntry(val cidr: String, val category: String, val source: String)
 private data class LocalReport(
     val vpn: Boolean,
     val transports: List<String>,
@@ -45,7 +45,7 @@ class MainActivity : Activity() {
     private lateinit var indicatorLevel: TextView
     private lateinit var indicatorProgress: ProgressBar
     private val dbFile by lazy { File(filesDir, "proxyguard-ip-intel.csv") }
-    private val entries = mutableListOf<IpIntelEntry>()
+    private val entries = mutableListOf<IpIpIntelEntry>()
     private var databaseLoadError: String? = null
 
     companion object {
@@ -347,10 +347,15 @@ class MainActivity : Activity() {
         return decoder.decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
     }
 
-    private fun parseDatabaseCsv(rawText: String): List<IpIntelEntry> =
+    private fun parseDatabaseCsv(rawText: String): List<IpIpIntelEntry> =
         IpIntelDatabase.parseCsv(rawText)
 
-    private fun persistDatabase(parsed: List<IntelEntry>) {
+    private fun csvCell(value: String): String =
+        if (value.any { it == ',' || it == '"' || it == '\r' || it == '\n' }) {
+            "\"" + value.replace("\"", "\"\"") + "\""
+        } else value
+
+    private fun persistDatabase(parsed: List<IpIntelEntry>) {
         val temporary = File(filesDir, "proxyguard-ip-intel.csv.tmp")
         val csv = buildString {
             appendLine("cidr,category,source")
