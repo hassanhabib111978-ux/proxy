@@ -40,11 +40,17 @@ class ProxyIndicatorScoringTest {
     }
 
     @Test
-    fun indicatorBandsUseExplicitBoundaries() {
-        assertEquals("قوية جداً", ProxyIndicatorScoring.indicatorBand(95))
-        assertEquals("قوية", ProxyIndicatorScoring.indicatorBand(85))
-        assertEquals("واضحة", ProxyIndicatorScoring.indicatorBand(60))
-        assertEquals("ضعيفة", ProxyIndicatorScoring.indicatorBand(30))
-        assertEquals("ضعيفة جداً", ProxyIndicatorScoring.indicatorBand(29))
+    fun indicatorBandsMatchTheRequestedColorThresholds() {
+        assertEquals("منخفضة", ProxyIndicatorScoring.indicatorBand(0))
+        assertEquals("منخفضة", ProxyIndicatorScoring.indicatorBand(25))
+        assertEquals("متوسطة", ProxyIndicatorScoring.indicatorBand(26))
+        assertEquals("متوسطة", ProxyIndicatorScoring.indicatorBand(50))
+        assertEquals("متوسطة", ProxyIndicatorScoring.indicatorBand(74))
+        assertEquals("عالية", ProxyIndicatorScoring.indicatorBand(75))
+        assertEquals("عالية", ProxyIndicatorScoring.indicatorBand(89))
+        assertEquals("مرتفعة جداً", ProxyIndicatorScoring.indicatorBand(90))
+        assertEquals("مرتفعة جداً", ProxyIndicatorScoring.indicatorBand(100))
+        assertEquals("غير صالحة", ProxyIndicatorScoring.indicatorBand(-1))
+        assertEquals("غير صالحة", ProxyIndicatorScoring.indicatorBand(101))
     }
 }
