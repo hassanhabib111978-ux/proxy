@@ -289,16 +289,20 @@ class MainActivity : Activity() {
         val rawAddress = proxyHostInput.text.toString().trim()
         var host = rawAddress
         var port = proxyPortInput.text.toString().trim().toIntOrNull()
-        // Accept pasted host:port and [IPv6]:port; otherwise read the separate port field.
-        if (port == null && rawAddress.startsWith("[") && rawAddress.contains("]:")) {
+        // Prefer an embedded port in a pasted host:port or [IPv6]:port value.
+        // Otherwise use the separate port field below the address.
+        if (rawAddress.startsWith("[") && rawAddress.contains("]:")) {
             val close = rawAddress.indexOf("]:")
-            host = rawAddress.substring(1, close)
-            port = rawAddress.substring(close + 2).toIntOrNull()
-        } else if (port == null && rawAddress.count { it == ':' } == 1) {
-            val pastedPort = rawAddress.substringAfterLast(':').toIntOrNull()
-            if (pastedPort != null) {
+            val embeddedPort = rawAddress.substring(close + 2).toIntOrNull()
+            if (embeddedPort != null) {
+                host = rawAddress.substring(1, close)
+                port = embeddedPort
+            }
+        } else if (rawAddress.count { it == ':' } == 1) {
+            val embeddedPort = rawAddress.substringAfterLast(':').toIntOrNull()
+            if (embeddedPort != null) {
                 host = rawAddress.substringBeforeLast(':')
-                port = pastedPort
+                port = embeddedPort
             }
         }
         val proxyLabel = proxyNameInput.text.toString().trim()
