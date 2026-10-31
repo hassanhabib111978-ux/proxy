@@ -3,7 +3,7 @@
 ProxyGuard has two separate implementations with different privacy and network behavior:
 
 - **Legacy Web MVP (0.1.1):** browser/server demonstration that uses external IP and STUN services as described below.
-- **Android pre-use scanner (0.5.0):** native Android app that tests a user-supplied HTTP/HTTPS/SOCKS5 proxy, obtains its exit IP through the proxy, and checks that IP with an external reputation provider. It does not require a ProxyGuard-owned backend.
+- **Android pre-use scanner (0.5.0):** native Android app that tests a user-supplied HTTP/HTTPS/SOCKS5/generic SOCKS proxy, obtains its exit IP through the proxy, and checks that IP with an external reputation provider. It does not require a ProxyGuard-owned backend.
 
 Neither edition guarantees anonymity or reproduces every website's proxy-detection systems.
 
