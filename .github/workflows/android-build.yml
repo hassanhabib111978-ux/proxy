@@ -34,31 +34,6 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Cache the test-build debug keystore so repeated CI APKs remain update-compatible.
-      - name: Restore persistent debug signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/proxyguard-debug.keystore
-          key: proxyguard-debug-signing-v1
-
-      - name: Create debug signing key when cache is empty
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.android"
-          KEYSTORE="$HOME/.android/proxyguard-debug.keystore"
-          if [ ! -f "$KEYSTORE" ]; then
-            keytool -genkeypair -v \
-              -keystore "$KEYSTORE" \
-              -storepass android \
-              -alias proxyguard-debug \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=ProxyGuard Test,O=ProxyGuard,C=US"
-          fi
-          echo "PROXYGUARD_DEBUG_KEYSTORE=$KEYSTORE" >> "$GITHUB_ENV"
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -94,6 +69,9 @@ jobs:
       - name: Run Android unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
+      - name: Run Android lint
+        run: gradle --no-daemon :app:lintDebug
+
       - name: Assemble debug APK
         run: gradle --no-daemon :app:assembleDebug
 
@@ -103,7 +81,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: proxyguard-android-0.4.0-debug
+          name: proxyguard-android-0.4.1-debug
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/debug/app-debug.apk.sha256
