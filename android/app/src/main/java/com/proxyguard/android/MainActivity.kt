@@ -378,7 +378,7 @@ class MainActivity : Activity() {
                     val detectionScore = result.detectabilityScore
                     val detectedLabels = result.detectionSignals.orEmpty()
                     val detectionColor = detectionScore?.let { riskColor(it) }
-                    detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف وكشف العناوين"
+                    detectabilityTitle.text = "ثقة مصدر البيانات في تصنيف عنوان IP"
                     when {
                         detectionScore != null -> {
                             detectabilityValue.text = "$detectionScore/100"
@@ -389,7 +389,7 @@ class MainActivity : Activity() {
                             detectabilityLevel.text = if (detectionScore == 0 && detectedLabels.isEmpty()) {
                                 "لم يرصد ProxyCheck تصنيفاً إيجابياً لهذا العنوان وقت الفحص. هذا لا يعني أن المواقع الأخرى لن تتعرف عليه."
                             } else {
-                                "ثقة المصدر في التصنيف: $detectionScore/100 • ${detectedLabels.joinToString("، ")}. هذه ثقة قاعدة البيانات بتصنيفها وليست احتمالاً عاماً لاكتشافه لدى كل موقع."
+                                "ثقة مصدر البيانات في صحة التصنيف: $detectionScore/100 • ${detectedLabels.joinToString("، ")}. هذه ثقة قاعدة البيانات بتصنيفها وليست احتمالاً عاماً لاكتشافه لدى كل موقع."
                             }
                         }
                         detectedLabels.isNotEmpty() -> {
@@ -410,7 +410,7 @@ class MainActivity : Activity() {
                         appendLine("تقرير فحص البروكسي")
                         if (proxyLabel.isNotBlank()) appendLine("اسم البروكسي: $proxyLabel")
                         appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore}/100")
-                        appendLine("مؤشر ظهور IP في قاعدة تصنيف المصدر: ${result.detectabilityScore?.let { "$it/100" } ?: "غير متاح"}")
+                        appendLine("ثقة المصدر في تصنيف عنوان IP: ${result.detectabilityScore?.let { "$it/100" } ?: "غير متاح"}")
                         appendLine("إشارات التصنيف المرصودة: ${result.detectionSignals.orEmpty().ifEmpty { listOf("لا توجد إشارات إيجابية لدى هذا المصدر وقت الفحص") }.joinToString("، ")}")
                         appendLine("تنبيه: مؤشر التصنيف وثقة المصدر لا يمثلان احتمال اكتشاف البروكسي لدى كل موقع؛ فالمواقع قد تستخدم إشارات أخرى.")
                         appendLine("عنوان IP الخارج: ${result.exitIp}")
@@ -444,7 +444,9 @@ class MainActivity : Activity() {
                         appendLine("الأدلة:")
                         result.evidence.forEach { appendLine("• $it") }
                         appendLine()
-                        appendLine("تفسير الدرجة: هذه درجة مخاطر IP التي يقدّمها ProxyCheck.io v3 وليست احتمالاً مئوياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        appendLine("تفسير درجة المخاطر: هذه درجة ProxyCheck.io v3 الخاصة بسمعة/مخاطر عنوان IP، وليست احتمالاً إحصائياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        appendLine("ثقة التصنيف 0–100 تعني مدى ثقة هذا المصدر في تصنيف إيجابي محدد؛ وهي ليست نسبة احتمال الاكتشاف على جميع المواقع.")
+                        appendLine("لا يحسب هذا الإصدار بعد درجة موحدة معايرة لجميع إشارات الشبكة والمتصفح والجلسة؛ لذلك لا ينبغي تفسير أي من الرقمين كاحتمال شامل للاكتشاف.")
                         appendLine("تقدير الأجهزة عامل مستقل. لا نرفع درجة الخطر آلياً بسبب كثرة الأجهزة وحدها؛ فقد تكون المشاركة طبيعية في شبكات الهاتف وCGNAT. يصبح المؤشر أكثر إثارة للقلق عند اقترانه بتصنيف Proxy/VPN أو سجل إساءة استخدام حديث.")
                         appendLine("قد يختلف قرار كل موقع؛ ولا يثبت عدم تصنيف العنوان كبروكسي أو VPN أنه غير قابل للاكتشاف.")
                         appendLine("تاريخ الفحص: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date())}")
@@ -585,7 +587,7 @@ class MainActivity : Activity() {
         indicatorLevel.text = detail
         indicatorLevel.setTextColor(0xFF475569.toInt())
         indicatorCard.background = indicatorBackground(0xFFEFF6FF.toInt())
-        detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف وكشف العناوين"
+        detectabilityTitle.text = "ثقة مصدر البيانات في تصنيف عنوان IP"
         detectabilityValue.text = "غير متاح"
         detectabilityValue.setTextColor(0xFF64748B.toInt())
         detectabilityLevel.text = "لا توجد نتيجة تصنيف صالحة من فحص البروكسي الحالي."
