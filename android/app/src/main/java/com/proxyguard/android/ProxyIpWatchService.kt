@@ -266,7 +266,7 @@ class ProxyIpWatchService : Service() {
         private const val ALERT_NOTIFICATION_ID = 6300
         private const val MAX_HISTORY_ROWS = 100
 
-        fun createStartIntent(
+        internal fun createStartIntent(
             context: android.content.Context,
             endpoint: ProxyEndpoint,
             intervalMinutes: Int
