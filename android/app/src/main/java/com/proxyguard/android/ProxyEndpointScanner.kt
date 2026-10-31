@@ -91,6 +91,7 @@ internal object ProxyEndpointScanner {
             add("عنوان IP الظاهر للخروج: $exitIp")
             if (intel.proxyDetected) add("مصدر السمعة صنّف عنوان الخروج كبروكسي.")
             if (intel.vpnDetected) add("مصدر السمعة صنّف عنوان الخروج كـ VPN.")
+            if (intel.anonymousDetected == true) add("مصدر السمعة وضع علامة Anonymous على عنوان الخروج.")
             intel.classificationType?.let { add("تصنيف عنوان IP لدى المصدر: $it") }
             intel.provider?.let { add("الجهة/المزوّد: $it") }
             intel.asn?.let { add("رقم النظام المستقل ASN: $it") }
@@ -98,8 +99,8 @@ internal object ProxyEndpointScanner {
             intel.estimatedDevicesInSubnet?.let { add("تقدير الأجهزة خلف الشبكة الفرعية: نحو $it جهازاً") }
             intel.attackHistoryCount?.let { add("أحداث الهجوم المرصودة في سجل المصدر: $it") }
             intel.confidenceScore?.let { add("ثقة تصنيف المصدر: $it/100") }
-            if (!intel.proxyDetected && !intel.vpnDetected) {
-                add("لم يسجل المصدر تطابقاً إيجابياً مع Proxy أو VPN وقت الفحص؛ هذا لا يضمن عدم اكتشافه لدى كل المواقع.")
+            if (intel.detectabilityScore == 0) {
+                add("لم يرصد المصدر تصنيفاً إيجابياً ضمن إشاراته الحالية؛ هذا لا يضمن عدم تعرف مواقع أو قواعد بيانات أخرى على العنوان.")
             }
         }
         return ProxyScanResult(
@@ -279,8 +280,9 @@ internal object ProxyEndpointScanner {
         }.distinct()
         val hasDetectionFields = listOf("anonymous", "proxy", "vpn", "tor", "hosting", "scraper", "compromised")
             .any { detections.has(it) && !detections.isNull(it) }
+        val hostingNetwork = networkType.equals("Hosting", ignoreCase = true)
         val hasPositiveDetection = anonymous == true || proxy || vpn || tor == true ||
-            hosting == true || scraper == true || compromised == true
+            hosting == true || hostingNetwork || scraper == true || compromised == true
         // This is the provider's confidence in its positive classification, not a
         // calibrated probability that any particular website will detect the IP.
         val detectabilityScore = when {
@@ -297,7 +299,7 @@ internal object ProxyEndpointScanner {
             proxy -> "Proxy"
             vpn -> "VPN"
             tor == true -> "TOR"
-            hosting == true -> "Hosting"
+            hosting == true || hostingNetwork -> "Hosting"
             scraper == true -> "Scraper"
             compromised == true -> "Compromised"
             anonymous == true -> "Anonymous"
