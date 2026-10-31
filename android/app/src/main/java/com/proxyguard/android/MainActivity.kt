@@ -243,7 +243,7 @@ class MainActivity : Activity() {
                     indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io v3"
                     indicatorValue.text = "${result.riskScore}%"
                     indicatorValue.setTextColor(color)
-                    indicatorLevel.text = "$level • ${if (result.proxyDetected) "صنّف المصدر العنوان كبروكسي" else if (result.vpnDetected) "صنّف المصدر العنوان كـ VPN" else "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
+                    indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
                     indicatorLevel.setTextColor(0xFF334155.toInt())
                     indicatorCard.background = indicatorBackground(Color.argb(28, Color.red(color), Color.green(color), Color.blue(color)))
                     output.text = buildString {
@@ -264,7 +264,7 @@ class MainActivity : Activity() {
                         appendLine("هذا ليس عدداً مؤكداً للمشتركين أو للجلسات المتصلة الآن. معرفة الجلسات الدقيقة تتطلب سجلات مزوّد البروكسي.")
                         appendLine()
                         result.confidenceScore?.let { appendLine("ثقة تصنيف المصدر: $it/100") }
-                        result.attackHistoryCount?.let { appendLine("إجمالي أحداث الهجوم التي أظهرها سجل المصدر: $it") }
+                        result.attackHistoryCount?.let { appendLine("أحداث الهجوم المرصودة خلال آخر 7 أيام في سجل المصدر: $it") }
                         result.firstSeen?.let { appendLine("أول رصد إيجابي: $it") }
                         result.lastSeen?.let { appendLine("آخر رصد إيجابي: $it") }
                         result.lastUpdated?.let { appendLine("آخر تحديث لبيانات المصدر: $it") }
