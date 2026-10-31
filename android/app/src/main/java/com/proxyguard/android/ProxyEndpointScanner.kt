@@ -464,12 +464,12 @@ internal object ProxyEndpointScanner {
             tls.sslParameters = tls.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
             tls.startHandshake()
             tls.getOutputStream().write(
-                ("GET / HTTP/1.1\\r\\nHost: $IP_ECHO_HOST\\r\\nAccept: text/plain\\r\\nConnection: close\\r\\nUser-Agent: ProxyGuard-Android\\r\\n\\r\\n")
+                ("GET / HTTP/1.1\r\nHost: $IP_ECHO_HOST\r\nAccept: text/plain\r\nConnection: close\r\nUser-Agent: ProxyGuard-Android\r\n\r\n")
                     .toByteArray(StandardCharsets.US_ASCII)
             )
             val response = readLimited(tls.getInputStream(), MAX_RESPONSE_BYTES)
             tls.close()
-            val body = response.substringAfter("\\r\\n\\r\\n", "").trim()
+            val body = response.substringAfter("\r\n\r\n", "").trim()
             if (!response.startsWith("HTTP/1.1 200") && !response.startsWith("HTTP/1.0 200")) {
                 throw IllegalStateException("خدمة اختبار عنوان الخروج أعادت استجابة غير ناجحة.")
             }
