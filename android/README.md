@@ -1,8 +1,8 @@
-# ProxyGuard Android 0.4.1 — pre-use proxy scanner
+# ProxyGuard Android 0.6.0 — pre-use proxy scanner
 
 ## Release status
 
-Version **0.4.1** adds a user-initiated proxy endpoint test and reputation lookup. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
+Version **0.6.0** adds ProxyCheck v3 intelligence, including device estimates behind the exit IP and subnet, detection confidence, and attack-history counts. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
 
 ## Current behavior
 
@@ -46,7 +46,7 @@ The current importer validates CSV syntax, CIDR notation, field lengths, control
 
 - Public egress IP without a network endpoint or user-supplied address.
 - Current global IP reputation without a fresh intelligence dataset.
-- Whether a website will detect, block, or accept a connection.
+- Whether a particular website will detect, block, challenge, or accept a connection. A website can use its own IP intelligence, ASN, request/session history, browser signals, TLS fingerprints, and behavioural models.
 - DNS leakage from merely displaying configured DNS resolver addresses.
 - Every per-app proxy, tunnel, or routing configuration.
 - Whether a detected VPN/proxy is malicious, safe, or trustworthy.
@@ -57,7 +57,7 @@ Android's platform APIs do not expose every app's network path to an ordinary ap
 
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.4.1-debug`. The runner uses its normal temporary Android debug signing key; artifacts from separate CI runs are not guaranteed to be update-compatible. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
+The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.6.0-debug`. CI uses a persistent development-only debug signing identity to keep CI test APKs update-compatible. Do not reuse this identity for commercial releases; release builds require a separately protected private signing key. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
 
 ## Privacy
 
@@ -75,12 +75,21 @@ The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs unt
 No “near-zero error” or universal detection claim is acceptable until measured against representative, independently labeled test data. Even then, publish the measured rates and test conditions rather than promising zero errors.
 
 
-## Pre-use proxy scan (0.4.1)
+## Pre-use proxy scan (0.5.0)
 
-The user can enter a proxy host, port, protocol (HTTP, HTTPS, SOCKS5), and optional username/password. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication). It then requests the public exit IP through the tested tunnel and queries ProxyCheck.io for its IP risk score and proxy/VPN classification.
+The user can enter an optional local proxy label, paste a proxy IP/host (or host:port), enter the port separately when needed, choose protocol (HTTP, HTTPS, SOCKS5, and generic SOCKS (automatic SOCKS5/SOCKS4a negotiation where credentials permit)), and provide optional username/password. The label is for local report identification only and is never sent to a provider. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication) and generic SOCKS negotiation: SOCKS5 is attempted first; SOCKS4a is attempted on a fresh connection only when no password credentials are supplied, because SOCKS4a has no password-authentication method.. It then requests the public exit IP through the tested tunnel and queries the stable ProxyCheck.io v3 API for IP risk, proxy/VPN classification, network type, estimated devices behind the IP and subnet, detection confidence, and attack-history counts.
 
-The displayed value is the upstream provider's **IP risk score**. ProxyCheck.io documents this score as an assessment based on activity it has observed from the IP and whether it appears to be running proxy/VPN infrastructure. It is **not** a calibrated probability that a particular website will detect or block the proxy. Proxy/VPN classification (`proxy`, `type`) is displayed separately from the risk score. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
+The result has two independent provider indicators, not one ProxyGuard-calibrated probability. The first is the upstream provider's **IP risk score** (recent abuse/reputation and infrastructure classifications; ProxyCheck documents baseline scores before attack history of 33 for Hosting, 50 for VPN, 75 for Scraper/TOR, and 100 for Proxy/Compromised). The second is the provider's **classification confidence**: when ProxyCheck positively classifies the address as anonymous, Proxy, VPN, TOR, Hosting, Scraper, or Compromised, the app displays the provider's detection-confidence score (0–100); when all returned detection flags are negative it displays 0/100 with an explicit note that this only means no positive classification was observed in this provider's current data. If a positive flag is present but the provider supplies no confidence score, the app reports the detection without inventing a percentage. This value is confidence in that provider's classification, not a calibrated probability that an arbitrary website will detect the proxy. Websites may use different IP databases, browser/device signals, session behaviour, DNS/WebRTC observations, or their own history. Device estimates are shown separately: they are not a verified count of subscribers or active proxy sessions, and high sharing is not automatically treated as abuse. The query requests a seven-day attack-history window, but the provider documents that it may suppress some stale or uncertain anonymous detections (notably on residential, wireless, and CGNAT networks); the displayed history is therefore provider-reported evidence, not a complete forensic log. ProxyCheck.io documents this score as an assessment based on activity it has observed from the IP and whether it appears to be running proxy/VPN infrastructure. It is **not** a calibrated probability that a particular website will detect or block the proxy. Proxy/VPN classification (`proxy`, `type`) is displayed separately from the risk score. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
 
-Color bands: 0–19 green, 20–39 yellow-green, 40–59 yellow, and 60–100 red with progressively darker red at higher scores. The 60% threshold is the requested visual warning threshold; it is not a universal blocking threshold.
+Color bands in the Android UI: 0–39 green, 40–74 yellow, and 75–100 red (darker red from 90). The provider IP risk score and the source-classification confidence use these display bands independently. The classification card shows the provider's confidence in its positive Proxy/VPN/anonymity/network-category classification; 0/100 means this source returned no positive detection flags at scan time, not that the proxy is impossible to detect. Missing confidence is shown as unavailable, not invented. These are display bands, not universal website blocking thresholds.
 
 The exit IP is disclosed to ProxyCheck.io for lookup. Proxy host, port, and credentials are not included in that reputation request. The app currently uses the provider's no-key endpoint; availability, query limits, response fields, and terms are controlled by the provider and must be reviewed before commercial launch. No guarantee is made that every proxy type, authentication scheme, DNS leak, WebRTC leak, or website-specific detection method is covered.
+
+
+## IP continuity monitoring (0.6.0)
+
+The user can explicitly start and stop a foreground monitoring session for the entered proxy endpoint. The monitor runs a fresh end-to-end HTTPS tunnel through that same host, port, protocol and authentication pair to api.ipify.org at a user-selected interval of 1, 2, or 5 minutes. It records the first successful exit IP as the baseline. A later, different HTTPS-observed exit IP triggers an Android notification containing the old and new addresses, and is appended to a bounded local history (up to 100 changes). Failed checks do not count as IP changes; the monitor reports the failure and retries at the next interval.
+
+The watcher does not query ProxyCheck on every poll and does not disconnect the proxy or alter Android network routing. Proxy credentials are passed to the in-process foreground service and kept in memory while it runs; they are not written into the watch preferences or the history file. The watcher is START_NOT_STICKY: if Android or the device vendor terminates the service/process, monitoring may stop and must be started again. Notification permission is required on Android 13+ for visible change alerts. The special-use foreground service declaration is for this explicit user-started network continuity task and must be reviewed against Google Play foreground-service policy before any Play distribution.
+
+This measurement confirms a change in the IP observed by api.ipify.org through a new proxy tunnel. It does not guarantee that every destination sees the same egress IP: some providers rotate by destination, per TCP connection, request, sticky-session token, or provider policy. Use the provider's documented sticky-session credentials/token if a stable session is intended. The watcher reuses the same proxy endpoint and credentials, but does not invent or manage vendor-specific session tokens. It provides confirmed-change alerts, not a pre-change prediction. A predicted percentage is intentionally omitted until sufficient independently observed change history exists.

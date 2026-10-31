@@ -1,5 +1,9 @@
 package com.proxyguard.android
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
@@ -13,7 +17,7 @@ import java.nio.charset.StandardCharsets
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
-internal enum class ProxyProtocol { HTTP, HTTPS, SOCKS5 }
+internal enum class ProxyProtocol { HTTP, HTTPS, SOCKS5, SOCKS_AUTO }
 
 internal data class ProxyEndpoint(
     val host: String,
@@ -26,13 +30,35 @@ internal data class ProxyEndpoint(
 internal data class ProxyScanResult(
     val exitIp: String,
     val riskScore: Int,
+    val sourceVersion: String = "v3",
     val proxyDetected: Boolean,
     val vpnDetected: Boolean,
     val classificationType: String?,
     val provider: String?,
     val country: String?,
     val asn: String?,
-    val evidence: List<String>
+    val evidence: List<String>,
+    val estimatedDevicesAtAddress: Int? = null,
+    val estimatedDevicesInSubnet: Int? = null,
+    val confidenceScore: Int? = null,
+    val attackHistoryCount: Int? = null,
+    val firstSeen: String? = null,
+    val lastSeen: String? = null,
+    val lastUpdated: String? = null,
+    val networkType: String? = null,
+    val city: String? = null,
+    val region: String? = null,
+    val operatorName: String? = null,
+    val operatorPopularity: String? = null,
+    val operatorAnonymity: String? = null,
+    val operatorServices: List<String>? = null,
+    val anonymousDetected: Boolean? = null,
+    val hostingDetected: Boolean? = null,
+    val torDetected: Boolean? = null,
+    val scraperDetected: Boolean? = null,
+    val compromisedDetected: Boolean? = null,
+    val detectabilityScore: Int? = null,
+    val detectionSignals: List<String>? = null
 )
 
 internal class ProxyScanException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -49,17 +75,18 @@ internal object ProxyEndpointScanner {
     private const val IP_ECHO_HOST = "api.ipify.org"
     private const val IP_ECHO_PORT = 443
 
-    fun scan(endpoint: ProxyEndpoint): ProxyScanResult {
+    fun scan(context: Context, endpoint: ProxyEndpoint): ProxyScanResult {
         validate(endpoint)
+        val directNetwork = selectUnderlyingNetwork(context)
         val exitIp = try {
-            fetchExitIp(endpoint)
+            fetchExitIp(endpoint, directNetwork)
         } catch (e: Exception) {
             throw ProxyScanException(
                 "تعذر إكمال الاتصال عبر البروكسي: ${safeMessage(e)}", e
             )
         }
         val intel = try {
-            lookupReputation(exitIp)
+            lookupReputation(exitIp, directNetwork)
         } catch (e: Exception) {
             throw ProxyScanException(
                 "تم الاتصال بالبروكسي واستخراج عنوان الخروج $exitIp، لكن تعذر التحقق من السمعة: ${safeMessage(e)}", e
@@ -70,34 +97,83 @@ internal object ProxyEndpointScanner {
             add("عنوان IP الظاهر للخروج: $exitIp")
             if (intel.proxyDetected) add("مصدر السمعة صنّف عنوان الخروج كبروكسي.")
             if (intel.vpnDetected) add("مصدر السمعة صنّف عنوان الخروج كـ VPN.")
+            if (intel.anonymousDetected == true) add("مصدر السمعة وضع علامة Anonymous على عنوان الخروج.")
             intel.classificationType?.let { add("تصنيف عنوان IP لدى المصدر: $it") }
             intel.provider?.let { add("الجهة/المزوّد: $it") }
             intel.asn?.let { add("رقم النظام المستقل ASN: $it") }
-            if (!intel.proxyDetected && !intel.vpnDetected) {
-                add("لم يسجل المصدر تطابقاً إيجابياً مع Proxy أو VPN وقت الفحص؛ هذا لا يضمن عدم اكتشافه لدى كل المواقع.")
+            intel.estimatedDevicesAtAddress?.let { add("تقدير الأجهزة خلف عنوان IP: نحو $it جهازاً") }
+            intel.estimatedDevicesInSubnet?.let { add("تقدير الأجهزة خلف الشبكة الفرعية: نحو $it جهازاً") }
+            intel.attackHistoryCount?.let { add("أحداث الهجوم المرصودة في سجل المصدر: $it") }
+            intel.confidenceScore?.let { add("ثقة تصنيف المصدر: $it/100") }
+            if (intel.detectabilityScore == 0 && intel.detectionSignals.orEmpty().isEmpty()) {
+                add("لم يرصد المصدر تصنيفاً إيجابياً ضمن إشاراته الحالية؛ هذا لا يضمن عدم تعرف مواقع أو قواعد بيانات أخرى على العنوان.")
             }
         }
         return ProxyScanResult(
             exitIp = exitIp,
             riskScore = intel.riskScore,
+            sourceVersion = intel.sourceVersion,
             proxyDetected = intel.proxyDetected,
             vpnDetected = intel.vpnDetected,
             classificationType = intel.classificationType,
             provider = intel.provider,
             country = intel.country,
             asn = intel.asn,
-            evidence = evidence
+            evidence = evidence,
+            estimatedDevicesAtAddress = intel.estimatedDevicesAtAddress,
+            estimatedDevicesInSubnet = intel.estimatedDevicesInSubnet,
+            confidenceScore = intel.confidenceScore,
+            attackHistoryCount = intel.attackHistoryCount,
+            firstSeen = intel.firstSeen,
+            lastSeen = intel.lastSeen,
+            lastUpdated = intel.lastUpdated,
+            networkType = intel.networkType,
+            city = intel.city,
+            region = intel.region,
+            operatorName = intel.operatorName,
+            operatorPopularity = intel.operatorPopularity,
+            operatorAnonymity = intel.operatorAnonymity,
+            operatorServices = intel.operatorServices,
+            anonymousDetected = intel.anonymousDetected,
+            hostingDetected = intel.hostingDetected,
+            torDetected = intel.torDetected,
+            scraperDetected = intel.scraperDetected,
+            compromisedDetected = intel.compromisedDetected,
+            detectabilityScore = intel.detectabilityScore,
+            detectionSignals = intel.detectionSignals
         )
     }
 
     internal data class ProxyReputation(
         val riskScore: Int,
+        val sourceVersion: String = "v3",
         val proxyDetected: Boolean,
         val vpnDetected: Boolean,
         val classificationType: String?,
         val provider: String?,
         val country: String?,
-        val asn: String?
+        val asn: String?,
+        val estimatedDevicesAtAddress: Int? = null,
+        val estimatedDevicesInSubnet: Int? = null,
+        val confidenceScore: Int? = null,
+        val attackHistoryCount: Int? = null,
+        val firstSeen: String? = null,
+        val lastSeen: String? = null,
+        val lastUpdated: String? = null,
+        val networkType: String? = null,
+        val city: String? = null,
+        val region: String? = null,
+        val operatorName: String? = null,
+        val operatorPopularity: String? = null,
+        val operatorAnonymity: String? = null,
+        val operatorServices: List<String>? = null,
+        val anonymousDetected: Boolean? = null,
+        val hostingDetected: Boolean? = null,
+        val torDetected: Boolean? = null,
+        val scraperDetected: Boolean? = null,
+        val compromisedDetected: Boolean? = null,
+        val detectabilityScore: Int? = null,
+        val detectionSignals: List<String>? = null
     )
 
     /**
@@ -135,6 +211,7 @@ internal object ProxyEndpointScanner {
         val classificationType = optionalText("type")
         return ProxyReputation(
             riskScore = risk,
+            sourceVersion = "v2",
             proxyDetected = proxy,
             vpnDetected = classificationType?.contains("vpn", ignoreCase = true) == true,
             classificationType = classificationType,
@@ -142,6 +219,145 @@ internal object ProxyEndpointScanner {
             country = optionalText("isocode"),
             asn = optionalText("asn")
         )
+    }
+
+
+    /**
+     * Stable ProxyCheck v3 parser. Device counts are estimates of devices behind
+     * an IP and subnet, not verified subscriber counts or live session totals.
+     */
+    internal fun parseProxyCheckV3Response(ip: String, jsonText: String): ProxyReputation {
+        val root = JSONObject(jsonText)
+        val status = root.optString("status")
+        if (status != "ok" && status != "warning") {
+            throw IllegalStateException(
+                "مصدر السمعة لم يقبل الطلب: ${root.optString("message", status)}"
+            )
+        }
+
+        val data = root.optJSONObject(ip)
+            ?: throw IllegalStateException("لم يرجع مصدر السمعة نتيجة لعنوان الخروج.")
+        val detections = data.optJSONObject("detections")
+            ?: throw IllegalStateException("استجابة v3 لا تحتوي على بيانات التصنيف.")
+        val risk = optionalNonNegativeInt(detections, "risk")
+            ?: throw IllegalStateException("مصدر السمعة لم يقدم درجة خطر رقمية؛ لن نخترع 0%.")
+        if (risk !in 0..100) {
+            throw IllegalStateException("درجة الخطر الواردة خارج النطاق المتوقع.")
+        }
+
+        val network = data.optJSONObject("network")
+        val location = data.optJSONObject("location")
+        val estimate = data.optJSONObject("device_estimate")
+        val attackHistory = data.optJSONObject("attack_history")
+        val operator = data.optJSONObject("operator")
+        fun optionalBoolean(parent: JSONObject?, field: String): Boolean? {
+            if (parent == null || !parent.has(field) || parent.isNull(field)) return null
+            return parent.optBoolean(field)
+        }
+
+        val proxy = optionalBoolean(detections, "proxy") == true
+        val vpn = optionalBoolean(detections, "vpn") == true
+        val tor = optionalBoolean(detections, "tor")
+        val hosting = optionalBoolean(detections, "hosting")
+        val scraper = optionalBoolean(detections, "scraper")
+        val compromised = optionalBoolean(detections, "compromised")
+        val anonymous = optionalBoolean(detections, "anonymous")
+
+        fun optionalText(parent: JSONObject?, field: String): String? {
+            if (parent == null || !parent.has(field) || parent.isNull(field)) return null
+            return parent.optString(field, "").takeUnless { it.isBlank() || it == "null" }
+        }
+
+        val attackCount = attackHistory?.let { history ->
+            var total = 0L
+            val keys = history.keys()
+            while (keys.hasNext()) {
+                optionalNonNegativeInt(history, keys.next())?.let { total += it.toLong() }
+            }
+            total.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        }
+        val confidence = optionalNonNegativeInt(detections, "confidence")?.takeIf { it in 0..100 }
+        val networkType = optionalText(network, "type")
+        val detectionSignals = buildList {
+            if (anonymous == true) add("Anonymous / عنوان مصنّف كمجهول")
+            if (proxy) add("Proxy")
+            if (vpn) add("VPN")
+            if (tor == true) add("TOR")
+            if (hosting == true || networkType.equals("Hosting", ignoreCase = true)) add("Hosting / مركز بيانات")
+            if (scraper == true) add("Scraper")
+            if (compromised == true) add("Compromised")
+        }.distinct()
+        val hasDetectionFields = listOf("anonymous", "proxy", "vpn", "tor", "hosting", "scraper", "compromised")
+            .any { detections.has(it) && !detections.isNull(it) }
+        val hostingNetwork = networkType.equals("Hosting", ignoreCase = true)
+        val hasPositiveDetection = anonymous == true || proxy || vpn || tor == true ||
+            hosting == true || hostingNetwork || scraper == true || compromised == true
+        // This is the provider's confidence in its positive classification, not a
+        // calibrated probability that any particular website will detect the IP.
+        val detectabilityScore = when {
+            hasPositiveDetection -> confidence
+            hasDetectionFields -> 0
+            else -> null
+        }
+        val operatorServices = operator?.optJSONArray("services")?.let { services ->
+            (0 until services.length()).mapNotNull { index ->
+                services.optString(index).takeIf { it.isNotBlank() && it != "null" }
+            }.takeIf { it.isNotEmpty() }
+        }
+        val classification = when {
+            proxy -> "Proxy"
+            vpn -> "VPN"
+            tor == true -> "TOR"
+            hosting == true || hostingNetwork -> "Hosting"
+            scraper == true -> "Scraper"
+            compromised == true -> "Compromised"
+            anonymous == true -> "Anonymous"
+            else -> null
+        }
+
+        return ProxyReputation(
+            riskScore = risk,
+            proxyDetected = proxy,
+            vpnDetected = vpn,
+            classificationType = classification,
+            provider = optionalText(network, "provider"),
+            country = optionalText(location, "country")
+                ?: optionalText(location, "country_name")
+                ?: optionalText(location, "country_code"),
+            asn = optionalText(network, "asn"),
+            estimatedDevicesAtAddress = optionalNonNegativeInt(estimate, "address"),
+            estimatedDevicesInSubnet = optionalNonNegativeInt(estimate, "subnet"),
+            confidenceScore = confidence,
+            attackHistoryCount = attackCount,
+            firstSeen = optionalText(detections, "first_seen"),
+            lastSeen = optionalText(detections, "last_seen"),
+            lastUpdated = optionalText(data, "last_updated"),
+            networkType = networkType,
+            city = optionalText(location, "city"),
+            region = optionalText(location, "region"),
+            operatorName = optionalText(operator, "name"),
+            operatorPopularity = optionalText(operator, "popularity"),
+            operatorAnonymity = optionalText(operator, "anonymity"),
+            operatorServices = operatorServices,
+            anonymousDetected = anonymous,
+            hostingDetected = hosting,
+            torDetected = tor,
+            scraperDetected = scraper,
+            compromisedDetected = compromised,
+            detectabilityScore = detectabilityScore,
+            detectionSignals = detectionSignals
+        )
+    }
+
+    private fun optionalNonNegativeInt(parent: JSONObject?, field: String): Int? {
+        if (parent == null || !parent.has(field) || parent.isNull(field)) return null
+        val raw = parent.opt(field)
+        val value = when (raw) {
+            is Number -> raw.toString().toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it % 1.0 == 0.0 }?.toInt()
+            else -> raw?.toString()?.toIntOrNull()
+        }
+        return value?.takeIf { it >= 0 }
     }
 
     private fun validate(endpoint: ProxyEndpoint) {
@@ -152,10 +368,68 @@ internal object ProxyEndpointScanner {
         require((endpoint.username?.length ?: 0) <= 255 && (endpoint.password?.length ?: 0) <= 255) { "بيانات المصادقة أطول من المسموح." }
     }
 
-    private fun fetchExitIp(endpoint: ProxyEndpoint): String {
-        val raw = Socket()
-        raw.connect(InetSocketAddress(endpoint.host, endpoint.port), CONNECT_TIMEOUT_MS)
-        raw.soTimeout = READ_TIMEOUT_MS
+    internal fun currentExitIp(context: Context, endpoint: ProxyEndpoint): String {
+        validate(endpoint)
+        return fetchExitIp(endpoint, selectUnderlyingNetwork(context))
+    }
+
+    /**
+     * When another VPN app (for example Tun2TAP) is active, ordinary sockets from
+     * this app may be routed back into that VPN and create a tunnel loop. Bind the
+     * proxy test and reputation requests to the physical non-VPN network instead.
+     */
+    private fun selectUnderlyingNetwork(context: Context): Network? {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val candidates = manager.allNetworks.mapNotNull { network ->
+            val caps = manager.getNetworkCapabilities(network) ?: return@mapNotNull null
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+                !(caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) return@mapNotNull null
+            network to caps
+        }
+        val active = manager.activeNetwork
+        val activeCaps = active?.let { manager.getNetworkCapabilities(it) }
+        if (activeCaps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true && candidates.isEmpty()) {
+            throw IllegalStateException(
+                "اكتشف ProxyGuard أن VPN نشط، لكن Android لم يوفّر شبكة فعلية مستقلة للاختبار. أوقف Tun2TAP مؤقتاً أو اسمح للتطبيق بالوصول إلى الشبكة الأساسية ثم أعد الفحص."
+            )
+        }
+        if (active != null && activeCaps != null &&
+            !activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+            activeCaps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return active
+        return candidates.firstOrNull { it.second.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) }?.first
+            ?: candidates.firstOrNull()?.first
+    }
+
+    private fun fetchExitIp(endpoint: ProxyEndpoint, network: Network?): String {
+        fun connect(): Socket {
+            val socket = network?.socketFactory?.createSocket() ?: Socket()
+            val address = if (network != null) {
+                InetSocketAddress(network.getAllByName(endpoint.host).first(), endpoint.port)
+            } else {
+                InetSocketAddress(endpoint.host, endpoint.port)
+            }
+            try {
+                socket.connect(address, CONNECT_TIMEOUT_MS)
+                socket.soTimeout = READ_TIMEOUT_MS
+                return socket
+            } catch (e: Exception) {
+                try { socket.close() } catch (_: Exception) {}
+                val detail = when (e) {
+                    is java.net.UnknownHostException -> "تعذر حل اسم خادم البروكسي؛ تحقق من عنوان الخادم أو DNS."
+                    is java.net.SocketTimeoutException -> "انتهت مهلة الوصول إلى خادم البروكسي؛ قد يكون الخادم أو المنفذ غير متاح."
+                    is java.net.ConnectException -> "رفض خادم البروكسي الاتصال أو تعذر الوصول إلى المنفذ."
+                    else -> "خطأ شبكة من النوع ${e.javaClass.simpleName}."
+                }
+                throw IllegalStateException("فشل الوصول TCP إلى خادم البروكسي ${endpoint.host}:${endpoint.port}. $detail التفاصيل: ${safeMessage(e)}", e)
+            }
+        }
+
+        // Keep connection establishment inside the diagnostic boundary so the
+        // user sees whether TCP, SOCKS negotiation, TLS, or the IP echo failed.
+        var raw = connect()
         var proxyTransport: Socket = raw
         try {
             if (endpoint.protocol == ProxyProtocol.HTTPS) {
@@ -171,6 +445,30 @@ internal object ProxyEndpointScanner {
             when (endpoint.protocol) {
                 ProxyProtocol.HTTP, ProxyProtocol.HTTPS -> establishHttpTunnel(proxyTransport, endpoint)
                 ProxyProtocol.SOCKS5 -> establishSocksTunnel(proxyTransport, endpoint)
+                ProxyProtocol.SOCKS_AUTO -> {
+                    try {
+                        establishSocksTunnel(proxyTransport, endpoint)
+                    } catch (socks5Error: Exception) {
+                        try { proxyTransport.close() } catch (_: Exception) {}
+                        try { raw.close() } catch (_: Exception) {}
+                        if (!endpoint.username.isNullOrEmpty() || !endpoint.password.isNullOrEmpty()) {
+                            throw IllegalStateException(
+                                "فشل تفاوض SOCKS5. لا يمكن تجربة SOCKS4a لأن هذا الإصدار لا يدعم كلمة المرور؛ تحقق من أن خيار SOCKS لدى المزوّد يدعم مصادقة SOCKS5.",
+                                socks5Error
+                            )
+                        }
+                        raw = connect()
+                        proxyTransport = raw
+                        try {
+                            establishSocks4aTunnel(proxyTransport, endpoint)
+                        } catch (socks4Error: Exception) {
+                            throw IllegalStateException(
+                                "تعذر التفاوض مع SOCKS5 أو SOCKS4a. SOCKS5: ${safeMessage(socks5Error)}؛ SOCKS4a: ${safeMessage(socks4Error)}",
+                                socks4Error
+                            )
+                        }
+                    }
+                }
             }
 
             val tls = (SSLSocketFactory.getDefault() as SSLSocketFactory)
@@ -193,6 +491,28 @@ internal object ProxyEndpointScanner {
         } finally {
             try { proxyTransport.close() } catch (_: Exception) {}
             try { raw.close() } catch (_: Exception) {}
+        }
+    }
+
+    /** SOCKS4a is attempted only when no password credentials were supplied. */
+    private fun establishSocks4aTunnel(socket: Socket, endpoint: ProxyEndpoint) {
+        val out = socket.getOutputStream()
+        val input = socket.getInputStream()
+        val userId = endpoint.username.orEmpty().toByteArray(StandardCharsets.UTF_8)
+        require(userId.size <= 255) { "اسم مستخدم SOCKS4a أطول من المسموح." }
+        val host = IP_ECHO_HOST.toByteArray(StandardCharsets.US_ASCII)
+        val request = ByteArrayOutputStream()
+        request.write(byteArrayOf(0x04, 0x01, (IP_ECHO_PORT shr 8).toByte(), IP_ECHO_PORT.toByte(), 0, 0, 0, 1))
+        request.write(userId)
+        request.write(0)
+        request.write(host)
+        request.write(0)
+        out.write(request.toByteArray())
+        out.flush()
+        val reply = ByteArray(8)
+        readFully(input, reply)
+        if ((reply[0].toInt() and 0xff) != 0 || (reply[1].toInt() and 0xff) != 90) {
+            throw IllegalStateException("رفض خادم SOCKS4a الاتصال (رمز ${reply[1].toInt() and 0xff}).")
         }
     }
 
@@ -237,8 +557,6 @@ internal object ProxyEndpointScanner {
             if (input.read() != 0x01 || input.read() != 0x00) throw IllegalStateException("فشل توثيق SOCKS5.")
         } else if (method != 0x00) {
             throw IllegalStateException("طريقة توثيق SOCKS5 غير مدعومة.")
-        } else if (hasCredentials) {
-            throw IllegalStateException("البروكسي لم يقبل طريقة التوثيق المطلوبة.")
         }
 
         val host = IP_ECHO_HOST.toByteArray(StandardCharsets.US_ASCII)
@@ -261,9 +579,25 @@ internal object ProxyEndpointScanner {
         readFully(input, discard)
     }
 
-    private fun lookupReputation(ip: String): ProxyReputation {
-        val url = URL("https://proxycheck.io/v2/$ip?risk=1&vpn=3&asn=1&port=1&seen=1&tag=0")
-        val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
+    private fun lookupReputation(ip: String, network: Network?): ProxyReputation {
+        val v3Failure = try {
+            return lookupReputationV3(ip, network)
+        } catch (e: Exception) {
+            e
+        }
+        return try {
+            lookupReputationV2(ip, network)
+        } catch (v2Failure: Exception) {
+            throw IllegalStateException(
+                "تعذر تقييم السمعة عبر v3: ${safeMessage(v3Failure)}. كما تعذر المسار الاحتياطي v2: ${safeMessage(v2Failure)}",
+                v2Failure
+            )
+        }
+    }
+
+    private fun lookupReputationV3(ip: String, network: Network?): ProxyReputation {
+        val url = URL("https://proxycheck.io/v3/$ip?days=7&tag=0")
+        val connection = ((network?.openConnection(url) ?: url.openConnection(Proxy.NO_PROXY)) as HttpURLConnection).apply {
             connectTimeout = 7_000
             readTimeout = 7_000
             requestMethod = "GET"
@@ -281,7 +615,40 @@ internal object ProxyEndpointScanner {
             }
             val jsonText = stream.use { readLimited(it, MAX_RESPONSE_BYTES) }
             if (code !in 200..299) {
-                throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code).")
+                val providerMessage = runCatching {
+                    JSONObject(jsonText).optString("message").takeIf { it.isNotBlank() && it != "null" }
+                }.getOrNull()
+                val detail = (providerMessage ?: jsonText.trim())
+                    .replace(Regex("\\s+"), " ")
+                    .take(220)
+                val suffix = if (detail.isBlank()) "" else ": $detail"
+                throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code)$suffix")
+            }
+            return parseProxyCheckV3Response(ip, jsonText)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun lookupReputationV2(ip: String, network: Network?): ProxyReputation {
+        val url = URL("https://proxycheck.io/v2/$ip?risk=1&vpn=1&asn=1&days=7&tag=0")
+        val connection = ((network?.openConnection(url) ?: url.openConnection(Proxy.NO_PROXY)) as HttpURLConnection).apply {
+            connectTimeout = 7_000
+            readTimeout = 7_000
+            requestMethod = "GET"
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "ProxyGuard-Android")
+            setRequestProperty("Cache-Control", "no-store")
+        }
+        try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                ?: throw IllegalStateException("مصدر السمعة v2 غير متاح حالياً (HTTP $code).")
+            val jsonText = stream.use { readLimited(it, MAX_RESPONSE_BYTES) }
+            if (code !in 200..299) {
+                val message = runCatching { JSONObject(jsonText).optString("message") }.getOrNull()
+                    ?.takeIf { it.isNotBlank() && it != "null" } ?: jsonText.trim()
+                throw IllegalStateException("مصدر السمعة v2 أعاد HTTP $code: ${message.take(180)}")
             }
             return parseProxyCheckV2Response(ip, jsonText)
         } finally {
