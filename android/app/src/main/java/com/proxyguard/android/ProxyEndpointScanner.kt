@@ -77,13 +77,31 @@ internal object ProxyEndpointScanner {
 
     fun scan(context: Context, endpoint: ProxyEndpoint): ProxyScanResult {
         validate(endpoint)
-        val directNetwork = selectUnderlyingNetwork(context)
+        var directNetwork = selectUnderlyingNetwork(context)
+        var usedDefaultAndroidRoute = false
         val exitIp = try {
             fetchExitIp(endpoint, directNetwork)
-        } catch (e: Exception) {
-            throw ProxyScanException(
-                "تعذر إكمال الاتصال عبر البروكسي: ${safeMessage(e)}", e
-            )
+        } catch (firstError: Exception) {
+            if (directNetwork != null && isNetworkBindingPermissionError(firstError)) {
+                // Android/OEM VPN policy can deny binding an app socket to a
+                // non-VPN Network while a third-party VPN is active. Retry using
+                // the normal app route; Android may route it through that VPN.
+                directNetwork = null
+                usedDefaultAndroidRoute = true
+                try {
+                    fetchExitIp(endpoint, null)
+                } catch (fallbackError: Exception) {
+                    fallbackError.addSuppressed(firstError)
+                    throw ProxyScanException(
+                        "رفض Android ربط الاتصال بالشبكة الفعلية (EPERM)، ثم فشل الاختبار عبر مسار Android الافتراضي أيضاً: ${safeMessage(fallbackError)}. تحقق من إعداد Tun2TAP أو استثناء التطبيق منه.",
+                        fallbackError
+                    )
+                }
+            } else {
+                throw ProxyScanException(
+                    "تعذر إكمال الاتصال عبر البروكسي: ${safeMessage(firstError)}", firstError
+                )
+            }
         }
         val intel = try {
             lookupReputation(exitIp, directNetwork)
@@ -94,6 +112,9 @@ internal object ProxyEndpointScanner {
         }
         val evidence = buildList {
             add("تم إنشاء نفق اتصال مشفر عبر البروكسي بنجاح.")
+            if (usedDefaultAndroidRoute) {
+                add("تعذر Android ربط المقبس بالشبكة الفعلية بسبب EPERM؛ أُعيد الفحص عبر مسار Android الافتراضي، وقد يمر عبر VPN نشط مثل Tun2TAP.")
+            }
             add("عنوان IP الظاهر للخروج: $exitIp")
             if (intel.proxyDetected) add("مصدر السمعة صنّف عنوان الخروج كبروكسي.")
             if (intel.vpnDetected) add("مصدر السمعة صنّف عنوان الخروج كـ VPN.")
@@ -378,6 +399,21 @@ internal object ProxyEndpointScanner {
      * this app may be routed back into that VPN and create a tunnel loop. Bind the
      * proxy test and reputation requests to the physical non-VPN network instead.
      */
+    private fun isNetworkBindingPermissionError(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            val message = current.message.orEmpty()
+            if (message.contains("Binding socket to network", ignoreCase = true) ||
+                message.contains("EPERM", ignoreCase = true) ||
+                (current is java.net.SocketException &&
+                    message.contains("Operation not permitted", ignoreCase = true))) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
+    }
+
     private fun selectUnderlyingNetwork(context: Context): Network? {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val candidates = manager.allNetworks.mapNotNull { network ->
