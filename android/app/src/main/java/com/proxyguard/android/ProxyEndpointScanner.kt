@@ -1,5 +1,9 @@
 package com.proxyguard.android
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
@@ -71,17 +75,18 @@ internal object ProxyEndpointScanner {
     private const val IP_ECHO_HOST = "api.ipify.org"
     private const val IP_ECHO_PORT = 443
 
-    fun scan(endpoint: ProxyEndpoint): ProxyScanResult {
+    fun scan(context: Context, endpoint: ProxyEndpoint): ProxyScanResult {
         validate(endpoint)
+        val directNetwork = selectUnderlyingNetwork(context)
         val exitIp = try {
-            fetchExitIp(endpoint)
+            fetchExitIp(endpoint, directNetwork)
         } catch (e: Exception) {
             throw ProxyScanException(
                 "تعذر إكمال الاتصال عبر البروكسي: ${safeMessage(e)}", e
             )
         }
         val intel = try {
-            lookupReputation(exitIp)
+            lookupReputation(exitIp, directNetwork)
         } catch (e: Exception) {
             throw ProxyScanException(
                 "تم الاتصال بالبروكسي واستخراج عنوان الخروج $exitIp، لكن تعذر التحقق من السمعة: ${safeMessage(e)}", e
@@ -363,14 +368,39 @@ internal object ProxyEndpointScanner {
         require((endpoint.username?.length ?: 0) <= 255 && (endpoint.password?.length ?: 0) <= 255) { "بيانات المصادقة أطول من المسموح." }
     }
 
-    internal fun currentExitIp(endpoint: ProxyEndpoint): String {
+    internal fun currentExitIp(context: Context, endpoint: ProxyEndpoint): String {
         validate(endpoint)
-        return fetchExitIp(endpoint)
+        return fetchExitIp(endpoint, selectUnderlyingNetwork(context))
     }
 
-    private fun fetchExitIp(endpoint: ProxyEndpoint): String {
-        val raw = Socket()
-        raw.connect(InetSocketAddress(endpoint.host, endpoint.port), CONNECT_TIMEOUT_MS)
+    /**
+     * When another VPN app (for example Tun2TAP) is active, ordinary sockets from
+     * this app may be routed back into that VPN and create a tunnel loop. Bind the
+     * proxy test and reputation requests to the physical non-VPN network instead.
+     */
+    private fun selectUnderlyingNetwork(context: Context): Network? {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val candidates = manager.allNetworks.mapNotNull { network ->
+            val caps = manager.getNetworkCapabilities(network) ?: return@mapNotNull null
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+                !(caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) return@mapNotNull null
+            network to caps
+        }
+        return candidates.firstOrNull { it.second.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) }?.first
+            ?: candidates.firstOrNull()?.first
+    }
+
+    private fun fetchExitIp(endpoint: ProxyEndpoint, network: Network?): String {
+        val raw = network?.socketFactory?.createSocket() ?: Socket()
+        val proxyAddress = if (network != null) {
+            InetSocketAddress(network.getAllByName(endpoint.host).first(), endpoint.port)
+        } else {
+            InetSocketAddress(endpoint.host, endpoint.port)
+        }
+        raw.connect(proxyAddress, CONNECT_TIMEOUT_MS)
         raw.soTimeout = READ_TIMEOUT_MS
         var proxyTransport: Socket = raw
         try {
@@ -477,14 +507,14 @@ internal object ProxyEndpointScanner {
         readFully(input, discard)
     }
 
-    private fun lookupReputation(ip: String): ProxyReputation {
+    private fun lookupReputation(ip: String, network: Network?): ProxyReputation {
         val v3Failure = try {
-            return lookupReputationV3(ip)
+            return lookupReputationV3(ip, network)
         } catch (e: Exception) {
             e
         }
         return try {
-            lookupReputationV2(ip)
+            lookupReputationV2(ip, network)
         } catch (v2Failure: Exception) {
             throw IllegalStateException(
                 "تعذر تقييم السمعة عبر v3: ${safeMessage(v3Failure)}. كما تعذر المسار الاحتياطي v2: ${safeMessage(v2Failure)}",
@@ -493,9 +523,9 @@ internal object ProxyEndpointScanner {
         }
     }
 
-    private fun lookupReputationV3(ip: String): ProxyReputation {
+    private fun lookupReputationV3(ip: String, network: Network?): ProxyReputation {
         val url = URL("https://proxycheck.io/v3/$ip?days=7&tag=0")
-        val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
+        val connection = ((network?.openConnection(url) ?: url.openConnection(Proxy.NO_PROXY)) as HttpURLConnection).apply {
             connectTimeout = 7_000
             readTimeout = 7_000
             requestMethod = "GET"
@@ -528,7 +558,7 @@ internal object ProxyEndpointScanner {
         }
     }
 
-    private fun lookupReputationV2(ip: String): ProxyReputation {
+    private fun lookupReputationV2(ip: String, network: Network?): ProxyReputation {
         val url = URL("https://proxycheck.io/v2/$ip?risk=1&vpn=1&asn=1&days=7&tag=0")
         val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
             connectTimeout = 7_000
