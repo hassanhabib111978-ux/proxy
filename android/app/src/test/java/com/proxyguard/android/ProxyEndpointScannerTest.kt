@@ -89,4 +89,103 @@ class ProxyEndpointScannerTest {
             """{"status":"denied","message":"quota exceeded"}"""
         )
     }
+
+    @Test
+    fun parsesV3DeviceEstimatesConfidenceAndAttackHistory() {
+        val result = ProxyEndpointScanner.parseProxyCheckV3Response(
+            ip,
+            """
+            {
+              "status": "ok",
+              "$ip": {
+                "network": {
+                  "asn": "AS64500",
+                  "provider": "Example Network",
+                  "type": "Residential"
+                },
+                "location": { "country_code": "US" },
+                "device_estimate": { "address": 143, "subnet": 920 },
+                "detections": {
+                  "proxy": false,
+                  "vpn": true,
+                  "risk": 67,
+                  "confidence": 91,
+                  "first_seen": "2026-10-25T10:00:00Z",
+                  "last_seen": "2026-10-31T08:00:00Z"
+                },
+                "attack_history": {
+                  "login_attempt": 4,
+                  "registration_attempt": 3
+                },
+                "last_updated": "2026-10-31T09:00:00Z"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(67, result.riskScore)
+        assertFalse(result.proxyDetected)
+        assertTrue(result.vpnDetected)
+        assertEquals("VPN", result.classificationType)
+        assertEquals("Residential", result.networkType)
+        assertEquals("Example Network", result.provider)
+        assertEquals("US", result.country)
+        assertEquals("AS64500", result.asn)
+        assertEquals(143, result.estimatedDevicesAtAddress)
+        assertEquals(920, result.estimatedDevicesInSubnet)
+        assertEquals(91, result.confidenceScore)
+        assertEquals(7, result.attackHistoryCount)
+        assertEquals("2026-10-25T10:00:00Z", result.firstSeen)
+        assertEquals("2026-10-31T08:00:00Z", result.lastSeen)
+        assertEquals("2026-10-31T09:00:00Z", result.lastUpdated)
+    }
+
+    @Test
+    fun leavesUnavailableV3DeviceEstimatesNull() {
+        val result = ProxyEndpointScanner.parseProxyCheckV3Response(
+            ip,
+            """
+            {
+              "status": "ok",
+              "$ip": {
+                "network": { "type": "Wireless" },
+                "location": { "country_code": "PL" },
+                "device_estimate": { "address": null, "subnet": null },
+                "detections": {
+                  "proxy": false,
+                  "vpn": false,
+                  "risk": 0,
+                  "confidence": null
+                },
+                "attack_history": null,
+                "detection_history": null,
+                "last_updated": "2026-10-31T09:00:00Z"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(0, result.riskScore)
+        assertEquals(null, result.estimatedDevicesAtAddress)
+        assertEquals(null, result.estimatedDevicesInSubnet)
+        assertEquals(null, result.confidenceScore)
+        assertEquals(null, result.attackHistoryCount)
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun rejectsV3ResponseWithoutRiskInsteadOfInventingZero() {
+        ProxyEndpointScanner.parseProxyCheckV3Response(
+            ip,
+            """{"status":"ok","$ip":{"detections":{"proxy":false,"vpn":false}}}"""
+        )
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun rejectsV3OutOfRangeRisk() {
+        ProxyEndpointScanner.parseProxyCheckV3Response(
+            ip,
+            """{"status":"ok","$ip":{"detections":{"risk":101}}}"""
+        )
+    }
+
 }
