@@ -547,15 +547,6 @@ class MainActivity : Activity() {
             return
         }
         val proxyLabel = proxyNameInput.text.toString().trim()
-        val protocol = when (proxyProtocolSpinner.selectedItem?.toString()) {
-            "HTTPS" -> ProxyProtocol.HTTPS
-            "SOCKS5" -> ProxyProtocol.SOCKS5
-            else -> ProxyProtocol.HTTP
-        }
-        if (host.isBlank() || port == null || port !in 1..65535) {
-            updateIndicator("بيانات البروكسي", "بيانات غير مكتملة", "ألصق عنوان IP أو اسم المضيف، ثم أدخل المنفذ في حقله أو ألصقه بصيغة IP:PORT.")
-            return
-        }
         val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
         val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
         if ((username == null) != (password == null)) {
@@ -667,7 +658,56 @@ class MainActivity : Activity() {
                     val message = e.message ?: "حدث خطأ أثناء فحص البروكسي."
                     updateIndicator("تعذر إكمال الفحص", "لا توجد نسبة موثوقة", message)
                     output.text = message + "\n\n" + scanFailureAdvice(message) +
-                        "\n\nتحقق من العنوان والمنفذ والنوع وبيانات الدخول ثم أع    private fun watchEndpointFromInputs(): ProxyEndpoint? {
+                        "\n\nتحقق من العنوان والمنفذ والنوع وبيانات الدخول ثم أعد المحاولة. الفشل ليس درجة خطر."
+                }
+            }
+        }
+    }
+
+
+    private fun startIpWatch() {
+        val endpoint = watchEndpointFromInputs() ?: return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_POST_NOTIFICATIONS
+            )
+            Toast.makeText(this, "اسمح بالإشعارات حتى تصلك تنبيهات تغيّر عنوان IP.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val interval = when (watchIntervalSpinner.selectedItemPosition) {
+            0 -> 1
+            2 -> 5
+            else -> 2
+        }
+        try {
+            val intent = ProxyIpWatchService.createStartIntent(this, endpoint, interval)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+            watchStatusText.text = "بدأت خدمة المراقبة؛ يجري تسجيل عنوان الخروج الأساسي."
+            Toast.makeText(this, "بدأت مراقبة عنوان الخروج.", Toast.LENGTH_SHORT).show()
+        } catch (error: Exception) {
+            watchStatusText.text = "تعذر بدء المراقبة: " + (error.message ?: "خطأ غير معروف")
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_POST_NOTIFICATIONS) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                startIpWatch()
+            } else {
+                Toast.makeText(this, "لن تصلك تنبيهات تغيّر IP دون السماح بإشعارات التطبيق.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun watchEndpointFromInputs(): ProxyEndpoint? {
         val (host, port) = parseProxyAddressInputs()
         if (host.isBlank() || host.contains("/") || host.contains("@") || host.any { it.isWhitespace() } ||
             port == null || port !in 1..65535
@@ -702,47 +742,6 @@ class MainActivity : Activity() {
             "وصل التطبيق إلى خدمة السمعة لكنها أعادت خطأ؛ قد تكون الحصة اليومية انتهت أو الخدمة غير متاحة مؤقتاً."
         else ->
             "قد يكون السبب عدم تطابق النوع أو المنفذ، توقف الخادم، أو رفضه الاتصال بخدمة اختبار عنوان الخروج. راجع بيانات المزوّد."
-    }
-
-       Toast.makeText(this, "لن تصلك تنبيهات تغيّر IP دون السماح بإشعارات التطبيق.", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun watchEndpointFromInputs(): ProxyEndpoint? {
-        val rawAddress = proxyHostInput.text.toString().trim()
-        var host = rawAddress
-        var port = proxyPortInput.text.toString().trim().toIntOrNull()
-        if (rawAddress.startsWith("[") && rawAddress.contains("]:")) {
-            val close = rawAddress.indexOf("]:")
-            val embeddedPort = rawAddress.substring(close + 2).toIntOrNull()
-            if (embeddedPort != null) {
-                host = rawAddress.substring(1, close)
-                port = embeddedPort
-            }
-        } else if (rawAddress.count { it == ':' } == 1) {
-            val embeddedPort = rawAddress.substringAfterLast(':').toIntOrNull()
-            if (embeddedPort != null) {
-                host = rawAddress.substringBeforeLast(':')
-                port = embeddedPort
-            }
-        }
-        if (host.isBlank() || port == null || port !in 1..65535) {
-            Toast.makeText(this, "أدخل عنوان البروكسي ومنفذه بصورة صحيحة أولاً.", Toast.LENGTH_LONG).show()
-            return null
-        }
-        val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
-        val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
-        if ((username == null) != (password == null)) {
-            Toast.makeText(this, "أدخل اسم المستخدم وكلمة المرور معاً أو اتركهما فارغين.", Toast.LENGTH_LONG).show()
-            return null
-        }
-        val protocol = when (proxyProtocolSpinner.selectedItem?.toString()) {
-            "HTTPS" -> ProxyProtocol.HTTPS
-            "SOCKS5" -> ProxyProtocol.SOCKS5
-            else -> ProxyProtocol.HTTP
-        }
-        return ProxyEndpoint(host, port, protocol, username, password)
     }
 
     private fun stopIpWatch() {
