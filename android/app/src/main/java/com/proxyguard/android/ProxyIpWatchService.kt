@@ -58,6 +58,7 @@ class ProxyIpWatchService : Service() {
             protocol = when (intent.getStringExtra(EXTRA_PROTOCOL)) {
                 "HTTPS" -> ProxyProtocol.HTTPS
                 "SOCKS5" -> ProxyProtocol.SOCKS5
+                "SOCKS_AUTO" -> ProxyProtocol.SOCKS_AUTO
                 else -> ProxyProtocol.HTTP
             },
             username = intent.getStringExtra(EXTRA_USERNAME),
