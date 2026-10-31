@@ -264,7 +264,8 @@ class MainActivity : Activity() {
                         appendLine("هذا ليس عدداً مؤكداً للمشتركين أو للجلسات المتصلة الآن. معرفة الجلسات الدقيقة تتطلب سجلات مزوّد البروكسي.")
                         appendLine()
                         result.confidenceScore?.let { appendLine("ثقة تصنيف المصدر: $it/100") }
-                        result.attackHistoryCount?.let { appendLine("أحداث الهجوم المرصودة خلال آخر 7 أيام في سجل المصدر: $it") }
+                        result.attackHistoryCount?.let { appendLine("أحداث الهجوم التي أبلغ عنها المصدر ضمن نافذة الأيام السبعة المطلوبة: $it") }
+                        appendLine("تنبيه: قد لا تتضمن النافذة بعض الإشارات القديمة أو غير المؤكدة وفق سياسة المصدر؛ هذا ليس سجلاً كاملاً مضموناً لكل النشاطات.")
                         result.firstSeen?.let { appendLine("أول رصد إيجابي: $it") }
                         result.lastSeen?.let { appendLine("آخر رصد إيجابي: $it") }
                         result.lastUpdated?.let { appendLine("آخر تحديث لبيانات المصدر: $it") }
