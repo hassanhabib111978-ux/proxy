@@ -99,7 +99,7 @@ internal object ProxyEndpointScanner {
             intel.estimatedDevicesInSubnet?.let { add("تقدير الأجهزة خلف الشبكة الفرعية: نحو $it جهازاً") }
             intel.attackHistoryCount?.let { add("أحداث الهجوم المرصودة في سجل المصدر: $it") }
             intel.confidenceScore?.let { add("ثقة تصنيف المصدر: $it/100") }
-            if (intel.detectabilityScore == 0) {
+            if (intel.detectabilityScore == 0 && intel.detectionSignals.orEmpty().isEmpty()) {
                 add("لم يرصد المصدر تصنيفاً إيجابياً ضمن إشاراته الحالية؛ هذا لا يضمن عدم تعرف مواقع أو قواعد بيانات أخرى على العنوان.")
             }
         }
