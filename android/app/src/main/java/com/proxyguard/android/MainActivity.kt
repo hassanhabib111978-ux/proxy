@@ -253,7 +253,7 @@ class MainActivity : Activity() {
             setTextColor(0xFF64748B.toInt())
         }
         indicatorLevel = TextView(this).apply {
-            text = "شغّل الفحص لعرض ما أمكن رصده على هذا الجهاز."
+            text = "ستظهر هنا درجة المخاطر ومستوى التصنيف بعد فحص البروكسي."
             textSize = 14f
             setTextColor(0xFF475569.toInt())
         }
@@ -346,9 +346,15 @@ class MainActivity : Activity() {
                         appendLine("VPN مصنّف من المصدر: ${if (result.vpnDetected) "نعم" else "لا"}")
                         result.classificationType?.let { appendLine("تصنيف العنوان لدى المصدر: $it") }
                         result.provider?.let { appendLine("المزوّد: $it") }
-                        result.country?.let { appendLine("بلد عنوان الخروج / رمز البلد: $it") }
+                        result.country?.let { appendLine("بلد عنوان الخروج: $it") }
+                        result.region?.let { appendLine("المنطقة: $it") }
+                        result.city?.let { appendLine("المدينة: $it") }
                         result.asn?.let { appendLine("رقم النظام المستقل ASN: $it") }
                         result.networkType?.let { appendLine("نوع الشبكة المسجل: $it") }
+                        result.operatorName?.let { appendLine("اسم مشغّل البروكسي/VPN المعروف: $it") }
+                        result.operatorPopularity?.let { appendLine("انتشار المشغّل بحسب المصدر: $it") }
+                        result.operatorAnonymity?.let { appendLine("مستوى إخفاء الهوية بحسب المصدر: $it") }
+                        result.operatorServices?.let { appendLine("الخدمات المعروفة للمشغّل: ${it.joinToString("، ")}") }
                         appendLine()
                         appendLine("مؤشر كثافة المشاركة (تقدير المصدر):")
                         appendLine("تقدير الأجهزة خلف عنوان IP نفسه: ${result.estimatedDevicesAtAddress?.let { "نحو $it جهازاً" } ?: "غير متاح من المصدر"}")
