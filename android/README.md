@@ -16,9 +16,9 @@ The Android app performs the following checks locally:
 
 The app does not need a ProxyGuard backend or internet permission for these checks.
 
-## How results are interpreted
+## How local-only results are interpreted
 
-The app intentionally does **not** display a 0–100 score or percentage.
+The local device scan and imported CSV lookup intentionally do **not** produce a 0–100 security score or percentage. The separate live pre-use scan is described below and uses an external provider's score.
 
 - A visible VPN is reported as a VPN observation, not as a security risk.
 - A system proxy is reported only when Android exposes one through the platform API.
@@ -75,7 +75,7 @@ The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs unt
 No “near-zero error” or universal detection claim is acceptable until measured against representative, independently labeled test data. Even then, publish the measured rates and test conditions rather than promising zero errors.
 
 
-## Pre-use proxy scan (0.4.0)
+## Pre-use proxy scan (0.4.1)
 
 The user can enter a proxy host, port, protocol (HTTP, HTTPS, SOCKS5), and optional username/password. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication). It then requests the public exit IP through the tested tunnel and queries ProxyCheck.io for its IP risk score and proxy/VPN classification.
 
