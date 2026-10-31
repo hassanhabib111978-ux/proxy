@@ -336,7 +336,7 @@ class MainActivity : Activity() {
                     indicatorValue.setTextColor(color)
                     indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
                     indicatorLevel.setTextColor(0xFF334155.toInt())
-                    indicatorCard.background = indicatorBackground(Color.argb(28, Color.red(color), Color.green(color), Color.blue(color)))
+                    indicatorCard.background = indicatorBackground(blendColor(Color.WHITE, color, 0.16f))
                     output.text = buildString {
                         appendLine("تقرير فحص البروكسي")
                         if (proxyLabel.isNotBlank()) appendLine("اسم البروكسي: $proxyLabel")
