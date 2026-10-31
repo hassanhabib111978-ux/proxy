@@ -174,7 +174,7 @@ class MainActivity : Activity() {
             adapter = ArrayAdapter(
                 this@MainActivity,
                 android.R.layout.simple_spinner_item,
-                arrayOf("اختر النوع", "HTTP", "HTTPS", "SOCKS5")
+                arrayOf("اختر النوع", "HTTP", "HTTPS", "SOCKS5", "SOCKS (اكتشاف تلقائي)")
             ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
             setSelection(0)
         }
@@ -528,6 +528,7 @@ class MainActivity : Activity() {
             "HTTP" -> ProxyProtocol.HTTP
             "HTTPS" -> ProxyProtocol.HTTPS
             "SOCKS5" -> ProxyProtocol.SOCKS5
+            "SOCKS (اكتشاف تلقائي)" -> ProxyProtocol.SOCKS_AUTO
             else -> null
         }
 
@@ -543,7 +544,7 @@ class MainActivity : Activity() {
         }
         val protocol = selectedProxyProtocol()
         if (protocol == null) {
-            updateIndicator("نوع البروكسي", "اختر النوع أولاً", "اختر HTTP أو HTTPS أو SOCKS5 تماماً كما ذكر المزوّد؛ لن يخمّن التطبيق النوع.")
+            updateIndicator("نوع البروكسي", "اختر النوع أولاً", "اختر HTTP أو HTTPS أو SOCKS5 أو SOCKS (اكتشاف تلقائي) وفقاً لخيار المزوّد.")
             return
         }
         val proxyLabel = proxyNameInput.text.toString().trim()
