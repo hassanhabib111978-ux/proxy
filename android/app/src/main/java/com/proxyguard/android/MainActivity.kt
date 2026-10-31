@@ -49,6 +49,10 @@ class MainActivity : Activity() {
     private lateinit var indicatorTitle: TextView
     private lateinit var indicatorValue: TextView
     private lateinit var indicatorLevel: TextView
+    private lateinit var detectabilityCard: LinearLayout
+    private lateinit var detectabilityTitle: TextView
+    private lateinit var detectabilityValue: TextView
+    private lateinit var detectabilityLevel: TextView
     private lateinit var proxyNameInput: EditText
     private lateinit var proxyHostInput: EditText
     private lateinit var proxyPortInput: EditText
@@ -264,6 +268,35 @@ class MainActivity : Activity() {
         indicatorCard.addView(indicatorLevel, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(2) })
+
+        detectabilityCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = indicatorBackground(0xFFF1F5F9.toInt())
+        }
+        detectabilityTitle = TextView(this).apply {
+            text = "مؤشر ظهور عنوان IP في قواعد تصنيف البروكسي/VPN"
+            textSize = 14f
+            setTextColor(0xFF1E293B.toInt())
+        }
+        detectabilityValue = TextView(this).apply {
+            text = "بانتظار الفحص"
+            textSize = 26f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xFF64748B.toInt())
+        }
+        detectabilityLevel = TextView(this).apply {
+            text = "سيظهر هنا ما إذا كان عنوان الخروج مصنّفاً في قاعدة بيانات المصدر."
+            textSize = 13f
+            setTextColor(0xFF475569.toInt())
+        }
+        detectabilityCard.addView(detectabilityTitle)
+        detectabilityCard.addView(detectabilityValue, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(6) })
+        detectabilityCard.addView(detectabilityLevel, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(2) })
         output = TextView(this).apply {
             textSize = 15f
             setTextColor(0xFF1D3045.toInt())
@@ -274,7 +307,7 @@ class MainActivity : Activity() {
             textSize = 13f
             setTextColor(0xFF526579.toInt())
         }
-        listOf(title, subtitle, formCard, indicatorCard, output, diagnosticsTitle, ipInput, checkIp, scan, import, privacy).forEach {
+        listOf(title, subtitle, formCard, indicatorCard, detectabilityCard, output, diagnosticsTitle, ipInput, checkIp, scan, import, privacy).forEach {
             content.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 bottomMargin = 18
             })
@@ -341,10 +374,45 @@ class MainActivity : Activity() {
                     indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
                     indicatorLevel.setTextColor(0xFF334155.toInt())
                     indicatorCard.background = indicatorBackground(blendColor(Color.WHITE, color, 0.16f))
+
+                    val detectionScore = result.detectabilityScore
+                    val detectedLabels = result.detectionSignals.orEmpty()
+                    val detectionColor = detectionScore?.let { riskColor(it) }
+                    detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف البروكسي/VPN"
+                    when {
+                        detectionScore != null -> {
+                            detectabilityValue.text = "$detectionScore/100"
+                            detectabilityValue.setTextColor(detectionColor ?: 0xFF64748B.toInt())
+                            detectabilityCard.background = indicatorBackground(
+                                blendColor(Color.WHITE, detectionColor ?: Color.LTGRAY, 0.16f)
+                            )
+                            detectabilityLevel.text = if (detectionScore == 0) {
+                                "لم يرصد ProxyCheck تصنيفاً إيجابياً لهذا العنوان وقت الفحص. هذا لا يعني أن المواقع الأخرى لن تتعرف عليه."
+                            } else {
+                                "ثقة المصدر في التصنيف: $detectionScore/100 • ${detectedLabels.joinToString("، ")}. هذه ثقة قاعدة البيانات بتصنيفها وليست احتمالاً عاماً لاكتشافه لدى كل موقع."
+                            }
+                        }
+                        detectedLabels.isNotEmpty() -> {
+                            detectabilityValue.text = "رُصد تصنيف"
+                            detectabilityValue.setTextColor(0xFFB45309.toInt())
+                            detectabilityCard.background = indicatorBackground(0xFFFEF3C7.toInt())
+                            detectabilityLevel.text = "${detectedLabels.joinToString("، ")}؛ لكن المصدر لم يقدّم درجة ثقة رقمية لهذا التصنيف."
+                        }
+                        else -> {
+                            detectabilityValue.text = "غير متاح"
+                            detectabilityValue.setTextColor(0xFF64748B.toInt())
+                            detectabilityCard.background = indicatorBackground(0xFFF1F5F9.toInt())
+                            detectabilityLevel.text = "لم تتوفر بيانات كافية لقياس ثقة التصنيف. لا تُفسّر هذه الحالة على أنها 0% أو ضمان لعدم الاكتشاف."
+                        }
+                    }
+                    detectabilityLevel.setTextColor(0xFF334155.toInt())
                     output.text = buildString {
                         appendLine("تقرير فحص البروكسي")
                         if (proxyLabel.isNotBlank()) appendLine("اسم البروكسي: $proxyLabel")
                         appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore}/100")
+                        appendLine("مؤشر ظهور IP في قاعدة تصنيف المصدر: ${result.detectabilityScore?.let { "$it/100" } ?: "غير متاح"}")
+                        appendLine("إشارات التصنيف المرصودة: ${result.detectionSignals.orEmpty().ifEmpty { listOf("لا توجد إشارات إيجابية لدى هذا المصدر وقت الفحص") }.joinToString("، ")}")
+                        appendLine("تنبيه: مؤشر التصنيف وثقة المصدر لا يمثلان احتمال اكتشاف البروكسي لدى كل موقع؛ فالمواقع قد تستخدم إشارات أخرى.")
                         appendLine("عنوان IP الخارج: ${result.exitIp}")
                         appendLine("Proxy مصنّف من المصدر: ${if (result.proxyDetected) "نعم" else "لا"}")
                         appendLine("VPN مصنّف من المصدر: ${if (result.vpnDetected) "نعم" else "لا"}")
