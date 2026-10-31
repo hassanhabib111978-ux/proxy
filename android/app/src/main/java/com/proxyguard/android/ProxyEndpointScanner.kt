@@ -72,7 +72,7 @@ internal object ProxyEndpointScanner {
     private const val CONNECT_TIMEOUT_MS = 8_000
     private const val READ_TIMEOUT_MS = 8_000
     private const val MAX_RESPONSE_BYTES = 32 * 1024
-    private const val IP_ECHO_HOST = "api.ipify.org"
+    private val IP_ECHO_HOSTS = listOf("api.ipify.org", "checkip.amazonaws.com", "icanhazip.com")
     private const val IP_ECHO_PORT = 443
 
     fun scan(context: Context, endpoint: ProxyEndpoint): ProxyScanResult {
@@ -404,14 +404,33 @@ internal object ProxyEndpointScanner {
     }
 
     private fun fetchExitIp(endpoint: ProxyEndpoint, network: Network?): String {
+        val failures = mutableListOf<String>()
+        var lastError: Exception? = null
+        for (echoHost in IP_ECHO_HOSTS) {
+            try {
+                return fetchExitIpFromHost(endpoint, network, echoHost)
+            } catch (error: Exception) {
+                lastError = error
+                failures += echoHost + ": " + safeMessage(error)
+            }
+        }
+        throw IllegalStateException(
+            "تعذر استخراج عنوان IP عبر جميع خدمات الاختبار. " + failures.joinToString(" | "),
+            lastError
+        )
+    }
+
+    private fun fetchExitIpFromHost(endpoint: ProxyEndpoint, network: Network?, echoHost: String): String {
         fun connect(): Socket {
             val socket = network?.socketFactory?.createSocket() ?: Socket()
-            val address = if (network != null) {
-                InetSocketAddress(network.getAllByName(endpoint.host).first(), endpoint.port)
-            } else {
-                InetSocketAddress(endpoint.host, endpoint.port)
-            }
             try {
+                val address = if (network != null) {
+                    val resolved = network.getAllByName(endpoint.host).firstOrNull()
+                        ?: throw java.net.UnknownHostException("لم يُرجع DNS أي عنوان لخادم البروكسي.")
+                    InetSocketAddress(resolved, endpoint.port)
+                } else {
+                    InetSocketAddress(endpoint.host, endpoint.port)
+                }
                 socket.connect(address, CONNECT_TIMEOUT_MS)
                 socket.soTimeout = READ_TIMEOUT_MS
                 return socket
@@ -421,14 +440,16 @@ internal object ProxyEndpointScanner {
                     is java.net.UnknownHostException -> "تعذر حل اسم خادم البروكسي؛ تحقق من عنوان الخادم أو DNS."
                     is java.net.SocketTimeoutException -> "انتهت مهلة الوصول إلى خادم البروكسي؛ قد يكون الخادم أو المنفذ غير متاح."
                     is java.net.ConnectException -> "رفض خادم البروكسي الاتصال أو تعذر الوصول إلى المنفذ."
-                    else -> "خطأ شبكة من النوع ${e.javaClass.simpleName}."
+                    else -> "خطأ شبكة من النوع " + e.javaClass.simpleName + "."
                 }
-                throw IllegalStateException("فشل الوصول TCP إلى خادم البروكسي ${endpoint.host}:${endpoint.port}. $detail التفاصيل: ${safeMessage(e)}", e)
+                throw IllegalStateException(
+                    "فشل الوصول TCP إلى خادم البروكسي " + endpoint.host + ":" + endpoint.port +
+                        ". " + detail + " التفاصيل: " + safeMessage(e),
+                    e
+                )
             }
         }
 
-        // Keep connection establishment inside the diagnostic boundary so the
-        // user sees whether TCP, SOCKS negotiation, TLS, or the IP echo failed.
         var raw = connect()
         var proxyTransport: Socket = raw
         try {
@@ -443,27 +464,28 @@ internal object ProxyEndpointScanner {
             }
 
             when (endpoint.protocol) {
-                ProxyProtocol.HTTP, ProxyProtocol.HTTPS -> establishHttpTunnel(proxyTransport, endpoint)
-                ProxyProtocol.SOCKS5 -> establishSocksTunnel(proxyTransport, endpoint)
+                ProxyProtocol.HTTP, ProxyProtocol.HTTPS -> establishHttpTunnel(proxyTransport, endpoint, echoHost)
+                ProxyProtocol.SOCKS5 -> establishSocksTunnel(proxyTransport, endpoint, echoHost)
                 ProxyProtocol.SOCKS_AUTO -> {
                     try {
-                        establishSocksTunnel(proxyTransport, endpoint)
+                        establishSocksTunnel(proxyTransport, endpoint, echoHost)
                     } catch (socks5Error: Exception) {
                         try { proxyTransport.close() } catch (_: Exception) {}
                         try { raw.close() } catch (_: Exception) {}
                         if (!endpoint.username.isNullOrEmpty() || !endpoint.password.isNullOrEmpty()) {
                             throw IllegalStateException(
-                                "فشل تفاوض SOCKS5. لا يمكن تجربة SOCKS4a لأن هذا الإصدار لا يدعم كلمة المرور؛ تحقق من أن خيار SOCKS لدى المزوّد يدعم مصادقة SOCKS5.",
+                                "فشل تفاوض SOCKS5. لا يمكن تجربة SOCKS4a عند وجود كلمة مرور؛ تحقق من دعم SOCKS5 والمصادقة.",
                                 socks5Error
                             )
                         }
                         raw = connect()
                         proxyTransport = raw
                         try {
-                            establishSocks4aTunnel(proxyTransport, endpoint)
+                            establishSocks4aTunnel(proxyTransport, endpoint, echoHost)
                         } catch (socks4Error: Exception) {
                             throw IllegalStateException(
-                                "تعذر التفاوض مع SOCKS5 أو SOCKS4a. SOCKS5: ${safeMessage(socks5Error)}؛ SOCKS4a: ${safeMessage(socks4Error)}",
+                                "تعذر التفاوض مع SOCKS5 أو SOCKS4a. SOCKS5: " +
+                                    safeMessage(socks5Error) + "؛ SOCKS4a: " + safeMessage(socks4Error),
                                 socks4Error
                             )
                         }
@@ -472,12 +494,13 @@ internal object ProxyEndpointScanner {
             }
 
             val tls = (SSLSocketFactory.getDefault() as SSLSocketFactory)
-                .createSocket(proxyTransport, IP_ECHO_HOST, IP_ECHO_PORT, true) as SSLSocket
+                .createSocket(proxyTransport, echoHost, IP_ECHO_PORT, true) as SSLSocket
             tls.soTimeout = READ_TIMEOUT_MS
             tls.sslParameters = tls.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
             tls.startHandshake()
             tls.getOutputStream().write(
-                ("GET / HTTP/1.1\r\nHost: $IP_ECHO_HOST\r\nAccept: text/plain\r\nConnection: close\r\nUser-Agent: ProxyGuard-Android\r\n\r\n")
+                ("GET / HTTP/1.1\r\nHost: " + echoHost +
+                    "\r\nAccept: text/plain\r\nConnection: close\r\nUser-Agent: ProxyGuard-Android\r\n\r\n")
                     .toByteArray(StandardCharsets.US_ASCII)
             )
             val response = readLimited(tls.getInputStream(), MAX_RESPONSE_BYTES)
@@ -495,12 +518,12 @@ internal object ProxyEndpointScanner {
     }
 
     /** SOCKS4a is attempted only when no password credentials were supplied. */
-    private fun establishSocks4aTunnel(socket: Socket, endpoint: ProxyEndpoint) {
+    private fun establishSocks4aTunnel(socket: Socket, endpoint: ProxyEndpoint, echoHost: String) {
         val out = socket.getOutputStream()
         val input = socket.getInputStream()
         val userId = endpoint.username.orEmpty().toByteArray(StandardCharsets.UTF_8)
         require(userId.size <= 255) { "اسم مستخدم SOCKS4a أطول من المسموح." }
-        val host = IP_ECHO_HOST.toByteArray(StandardCharsets.US_ASCII)
+        val host = echoHost.toByteArray(StandardCharsets.US_ASCII)
         val request = ByteArrayOutputStream()
         request.write(byteArrayOf(0x04, 0x01, (IP_ECHO_PORT shr 8).toByte(), IP_ECHO_PORT.toByte(), 0, 0, 0, 1))
         request.write(userId)
@@ -516,7 +539,7 @@ internal object ProxyEndpointScanner {
         }
     }
 
-    private fun establishHttpTunnel(socket: Socket, endpoint: ProxyEndpoint) {
+    private fun establishHttpTunnel(socket: Socket, endpoint: ProxyEndpoint, echoHost: String) {
         val auth = if (!endpoint.username.isNullOrEmpty()) {
             val token = android.util.Base64.encodeToString(
                 "${endpoint.username}:${endpoint.password.orEmpty()}".toByteArray(StandardCharsets.UTF_8),
@@ -524,7 +547,7 @@ internal object ProxyEndpointScanner {
             )
             "Proxy-Authorization: Basic $token\r\n"
         } else ""
-        val request = "CONNECT $IP_ECHO_HOST:$IP_ECHO_PORT HTTP/1.1\r\nHost: $IP_ECHO_HOST:$IP_ECHO_PORT\r\n$auth$authConnection: keep-alive\r\n\r\n"
+        val request = "CONNECT " + echoHost + ":" + IP_ECHO_PORT + " HTTP/1.1\r\nHost: " + echoHost + ":" + IP_ECHO_PORT + "\r\n" + auth + authConnection + ": keep-alive\r\n\r\n"
             .replace("$authConnection", "Proxy-Connection")
         socket.getOutputStream().write(request.toByteArray(StandardCharsets.US_ASCII))
         val header = readHeaders(socket.getInputStream())
@@ -536,7 +559,7 @@ internal object ProxyEndpointScanner {
 
     private const val authConnection = "Proxy-Connection"
 
-    private fun establishSocksTunnel(socket: Socket, endpoint: ProxyEndpoint) {
+    private fun establishSocksTunnel(socket: Socket, endpoint: ProxyEndpoint, echoHost: String) {
         val out = socket.getOutputStream()
         val input = BufferedInputStream(socket.getInputStream())
         val hasCredentials = !endpoint.username.isNullOrEmpty()
@@ -559,7 +582,7 @@ internal object ProxyEndpointScanner {
             throw IllegalStateException("طريقة توثيق SOCKS5 غير مدعومة.")
         }
 
-        val host = IP_ECHO_HOST.toByteArray(StandardCharsets.US_ASCII)
+        val host = echoHost.toByteArray(StandardCharsets.US_ASCII)
         out.write(byteArrayOf(0x05, 0x01, 0x00, 0x03, host.size.toByte()))
         out.write(host)
         out.write(byteArrayOf((IP_ECHO_PORT shr 8).toByte(), IP_ECHO_PORT.toByte()))
