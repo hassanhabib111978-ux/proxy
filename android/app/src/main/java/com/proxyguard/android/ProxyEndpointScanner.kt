@@ -26,6 +26,7 @@ internal data class ProxyEndpoint(
 internal data class ProxyScanResult(
     val exitIp: String,
     val riskScore: Int,
+    val sourceVersion: String = "v3",
     val proxyDetected: Boolean,
     val vpnDetected: Boolean,
     val classificationType: String?,
@@ -106,6 +107,7 @@ internal object ProxyEndpointScanner {
         return ProxyScanResult(
             exitIp = exitIp,
             riskScore = intel.riskScore,
+            sourceVersion = intel.sourceVersion,
             proxyDetected = intel.proxyDetected,
             vpnDetected = intel.vpnDetected,
             classificationType = intel.classificationType,
@@ -139,6 +141,7 @@ internal object ProxyEndpointScanner {
 
     internal data class ProxyReputation(
         val riskScore: Int,
+        val sourceVersion: String = "v3",
         val proxyDetected: Boolean,
         val vpnDetected: Boolean,
         val classificationType: String?,
@@ -203,6 +206,7 @@ internal object ProxyEndpointScanner {
         val classificationType = optionalText("type")
         return ProxyReputation(
             riskScore = risk,
+            sourceVersion = "v2",
             proxyDetected = proxy,
             vpnDetected = classificationType?.contains("vpn", ignoreCase = true) == true,
             classificationType = classificationType,
@@ -474,6 +478,22 @@ internal object ProxyEndpointScanner {
     }
 
     private fun lookupReputation(ip: String): ProxyReputation {
+        val v3Failure = try {
+            return lookupReputationV3(ip)
+        } catch (e: Exception) {
+            e
+        }
+        return try {
+            lookupReputationV2(ip)
+        } catch (v2Failure: Exception) {
+            throw IllegalStateException(
+                "تعذر تقييم السمعة عبر v3: ${safeMessage(v3Failure)}. كما تعذر المسار الاحتياطي v2: ${safeMessage(v2Failure)}",
+                v2Failure
+            )
+        }
+    }
+
+    private fun lookupReputationV3(ip: String): ProxyReputation {
         val url = URL("https://proxycheck.io/v3/$ip?days=7&tag=0")
         val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
             connectTimeout = 7_000
@@ -503,6 +523,32 @@ internal object ProxyEndpointScanner {
                 throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code)$suffix")
             }
             return parseProxyCheckV3Response(ip, jsonText)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun lookupReputationV2(ip: String): ProxyReputation {
+        val url = URL("https://proxycheck.io/v2/$ip?risk=1&vpn=1&asn=1&days=7&tag=0")
+        val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
+            connectTimeout = 7_000
+            readTimeout = 7_000
+            requestMethod = "GET"
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "ProxyGuard-Android")
+            setRequestProperty("Cache-Control", "no-store")
+        }
+        try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                ?: throw IllegalStateException("مصدر السمعة v2 غير متاح حالياً (HTTP $code).")
+            val jsonText = stream.use { readLimited(it, MAX_RESPONSE_BYTES) }
+            if (code !in 200..299) {
+                val message = runCatching { JSONObject(jsonText).optString("message") }.getOrNull()
+                    ?.takeIf { it.isNotBlank() && it != "null" } ?: jsonText.trim()
+                throw IllegalStateException("مصدر السمعة v2 أعاد HTTP $code: ${message.take(180)}")
+            }
+            return parseProxyCheckV2Response(ip, jsonText)
         } finally {
             connection.disconnect()
         }
