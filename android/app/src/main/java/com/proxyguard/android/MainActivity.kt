@@ -20,9 +20,9 @@ import android.widget.TextView
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
-import java.net.InetAddress
 import java.net.Proxy
 import java.net.ProxySelector
+import java.net.InetAddress
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
@@ -58,6 +58,7 @@ class MainActivity : Activity() {
     private val dbFile by lazy { File(filesDir, "proxyguard-ip-intel.csv") }
     private val entries = mutableListOf<IpIntelEntry>()
     private var databaseLoadError: String? = null
+    @Volatile private var activityDestroyed = false
 
     companion object {
         private const val REQUEST_DATABASE = 41
@@ -68,6 +69,13 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         loadDatabase()
         render()
+    }
+
+    override fun onDestroy() {
+        activityDestroyed = true
+        scanExecutor.shutdownNow()
+        mainHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     private fun render() {
@@ -185,7 +193,7 @@ class MainActivity : Activity() {
             setPadding(0, 24, 0, 24)
         }
         val privacy = TextView(this).apply {
-            text = "الخصوصية: يتصل فحص البروكسي بخدمة اختبار عنوان IP ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة. لا تُرسل بيانات اعتماد البروكسي إلى خدمة السمعة ولا تُحفظ في التطبيق. قد يعالج مزوّد السمعة عنوان IP وفق سياسته. عرض DNS ليس اختبار تسريب DNS."
+            text = "الخصوصية: يتصل فحص البروكسي بخدمة اختبار عنوان IP ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة. لا تُرسل بيانات اعتماد البروكسي إلى خدمة السمعة ولا تُحفظ في التطبيق. قد يعالج مزوّد السمعة عنوان IP وفق سياسته. تنبيه أمني: HTTP وSOCKS5 العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ استخدم HTTPS Proxy أو قناة موثوقة، ولا تدخل كلمة مرور حساسة عبر بروكسي غير مشفر. عرض DNS ليس اختبار تسريب DNS."
             textSize = 13f
             setTextColor(0xFF526579.toInt())
         }
@@ -226,36 +234,41 @@ class MainActivity : Activity() {
             try {
                 val result = ProxyEndpointScanner.scan(endpoint)
                 mainHandler.post {
+                    if (activityDestroyed) return@post
                     proxyScanButton.isEnabled = true
                     proxyUsernameInput.text.clear()
                     proxyPasswordInput.text.clear()
                     val level = ProxyRiskPresentation.level(result.riskScore)
                     val color = riskColor(result.riskScore)
-                    indicatorTitle.text = "مؤشر الخطورة وقابلية الكشف — تقديري"
+                    indicatorTitle.text = "درجة مخاطر عنوان IP لدى ProxyCheck.io"
                     indicatorValue.text = "${result.riskScore}%"
                     indicatorValue.setTextColor(color)
-                    indicatorLevel.text = "$level • ${if (result.proxyDetected) "تم رصد البروكسي في مصدر السمعة" else if (result.vpnDetected) "تم رصد VPN" else "لم يرصد المصدر Proxy/VPN"}"
+                    indicatorLevel.text = "$level • ${if (result.proxyDetected) "صنّف المصدر العنوان كبروكسي" else if (result.vpnDetected) "صنّف المصدر العنوان كـ VPN" else "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
                     indicatorLevel.setTextColor(0xFF334155.toInt())
                     indicatorCard.background = indicatorBackground(Color.argb(28, Color.red(color), Color.green(color), Color.blue(color)))
                     output.text = buildString {
                         appendLine("تقرير فحص البروكسي")
-                        appendLine("النتيجة: ${result.riskScore}% — $level")
+                        appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore}/100")
                         appendLine("عنوان IP الخارج: ${result.exitIp}")
-                        appendLine("Proxy مكتشف في قاعدة السمعة: ${if (result.proxyDetected) "نعم" else "لا"}")
-                        appendLine("VPN مكتشف: ${if (result.vpnDetected) "نعم" else "لا"}")
-                        result.networkType?.let { appendLine("نوع الشبكة: $it") }
+                        appendLine("Proxy مصنّف من المصدر: ${if (result.proxyDetected) "نعم" else "لا"}")
+                        appendLine("VPN مصنّف من المصدر: ${if (result.vpnDetected) "نعم" else "لا"}")
+                        result.classificationType?.let { appendLine("تصنيف العنوان لدى المصدر: $it") }
                         result.provider?.let { appendLine("المزوّد: $it") }
                         result.country?.let { appendLine("رمز البلد: $it") }
+                        result.asn?.let { appendLine("رقم النظام المستقل ASN: $it") }
                         appendLine("مصدر السمعة: ProxyCheck.io")
                         appendLine()
                         appendLine("الأدلة:")
                         result.evidence.forEach { appendLine("• $it") }
                         appendLine()
-                        appendLine("تنبيه مهم: النسبة مؤشر خطورة صادر عن مصدر السمعة وليست احتمالاً إحصائياً مضموناً لاكتشاف البروكسي أو رفضه من كل موقع. تختلف أنظمة الكشف من موقع لآخر، وقد تتغير سمعة عنوان IP بمرور الوقت.")
+                        appendLine("تفسير الدرجة: هذه درجة مخاطر IP التي يقدّمها ProxyCheck.io اعتماداً على مؤشرات ونشاط رصده المزوّد، وليست احتمالاً مئوياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        appendLine("قد يختلف قرار كل موقع؛ ولا يثبت عدم تصنيف العنوان كبروكسي أو VPN أنه غير قابل للاكتشاف.")
+                        appendLine("تاريخ الفحص: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date())}")
                     }
                 }
             } catch (e: Exception) {
                 mainHandler.post {
+                    if (activityDestroyed) return@post
                     proxyScanButton.isEnabled = true
                     proxyUsernameInput.text.clear()
                     proxyPasswordInput.text.clear()
@@ -271,10 +284,10 @@ class MainActivity : Activity() {
         val yellow = 0xFFEAB308.toInt()
         val red = 0xFFEF4444.toInt()
         val deepRed = 0xFF7F1D1D.toInt()
-        return if (score < 60) {
-            blendColor(safe, yellow, score.coerceIn(0, 59) / 59f)
-        } else {
-            blendColor(red, deepRed, (score.coerceIn(60, 100) - 60) / 40f)
+        return when {
+            score < 40 -> blendColor(safe, yellow, score.coerceIn(0, 39) / 39f)
+            score < 60 -> blendColor(yellow, red, (score.coerceIn(40, 59) - 40) / 19f)
+            else -> blendColor(red, deepRed, (score.coerceIn(60, 100) - 60) / 40f)
         }
     }
 
@@ -298,7 +311,7 @@ class MainActivity : Activity() {
             if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true) add("Ethernet")
             if (vpn) add("VPN")
         }
-        val dns = network?.let { cm.getLinkProperties(it)?.dnsServers?.map(InetAddress::getHostAddress) } ?: emptyList()
+        val dns = network?.let { cm.getLinkProperties(it)?.dnsServers?.mapNotNull { address -> address.hostAddress } } ?: emptyList()
         val proxy = try {
             ProxySelector.getDefault()?.select(URI("https://example.invalid"))
                 ?.firstOrNull { it.type() == Proxy.Type.HTTP || it.type() == Proxy.Type.SOCKS }

@@ -28,9 +28,10 @@ internal data class ProxyScanResult(
     val riskScore: Int,
     val proxyDetected: Boolean,
     val vpnDetected: Boolean,
-    val networkType: String?,
+    val classificationType: String?,
     val provider: String?,
     val country: String?,
+    val asn: String?,
     val evidence: List<String>
 )
 
@@ -69,8 +70,9 @@ internal object ProxyEndpointScanner {
             add("عنوان IP الظاهر للخروج: $exitIp")
             if (intel.proxyDetected) add("مصدر السمعة صنّف عنوان الخروج كبروكسي.")
             if (intel.vpnDetected) add("مصدر السمعة صنّف عنوان الخروج كـ VPN.")
-            intel.networkType?.let { add("نوع الشبكة المسجل: $it") }
+            intel.classificationType?.let { add("تصنيف عنوان IP لدى المصدر: $it") }
             intel.provider?.let { add("الجهة/المزوّد: $it") }
+            intel.asn?.let { add("رقم النظام المستقل ASN: $it") }
             if (!intel.proxyDetected && !intel.vpnDetected) {
                 add("لم يسجل المصدر تطابقاً إيجابياً مع Proxy أو VPN وقت الفحص؛ هذا لا يضمن عدم اكتشافه لدى كل المواقع.")
             }
@@ -80,21 +82,67 @@ internal object ProxyEndpointScanner {
             riskScore = intel.riskScore,
             proxyDetected = intel.proxyDetected,
             vpnDetected = intel.vpnDetected,
-            networkType = intel.networkType,
+            classificationType = intel.classificationType,
             provider = intel.provider,
             country = intel.country,
+            asn = intel.asn,
             evidence = evidence
         )
     }
 
-    private data class Reputation(
+    internal data class ProxyReputation(
         val riskScore: Int,
         val proxyDetected: Boolean,
         val vpnDetected: Boolean,
-        val networkType: String?,
+        val classificationType: String?,
         val provider: String?,
-        val country: String?
+        val country: String?,
+        val asn: String?
     )
+
+    /**
+     * Parses the documented legacy v2 response. Kept separate from networking so
+     * response-field mapping and missing/invalid scores can be unit tested.
+     */
+    internal fun parseProxyCheckV2Response(ip: String, jsonText: String): ProxyReputation {
+        val root = JSONObject(jsonText)
+        val status = root.optString("status")
+        if (status != "ok" && status != "warning") {
+            throw IllegalStateException(
+                "مصدر السمعة لم يقبل الطلب: ${root.optString("message", status)}"
+            )
+        }
+
+        val data = root.optJSONObject(ip)
+            ?: throw IllegalStateException("لم يرجع مصدر السمعة نتيجة لعنوان الخروج.")
+
+        val risk = data.opt("risk")?.toString()?.toIntOrNull()
+            ?: throw IllegalStateException(
+                "مصدر السمعة لم يقدم درجة خطر رقمية؛ لن نخترع نسبة."
+            )
+        if (risk !in 0..100) {
+            throw IllegalStateException("درجة الخطر الواردة خارج النطاق المتوقع.")
+        }
+
+        val proxy = when (val raw = data.opt("proxy")) {
+            is Boolean -> raw
+            null, JSONObject.NULL -> false
+            else -> raw.toString().equals("yes", ignoreCase = true)
+        }
+        fun optionalText(field: String): String? =
+            data.optString(field, "").takeUnless { it.isBlank() || it == "null" }
+
+        val classificationType = optionalText("type")
+        return ProxyReputation(
+            riskScore = risk,
+            proxyDetected = proxy,
+            vpnDetected = classificationType?.contains("vpn", ignoreCase = true) == true,
+            classificationType = classificationType,
+            provider = optionalText("provider"),
+            country = optionalText("isocode"),
+            asn = optionalText("asn")
+        )
+    }
 
     private fun validate(endpoint: ProxyEndpoint) {
         require(endpoint.host.isNotBlank() && endpoint.host.length <= 253) { "أدخل اسم مضيف أو عنوان IP صحيحاً." }
@@ -213,7 +261,7 @@ internal object ProxyEndpointScanner {
         readFully(input, discard)
     }
 
-    private fun lookupReputation(ip: String): Reputation {
+    private fun lookupReputation(ip: String): ProxyReputation {
         val url = URL("https://proxycheck.io/v2/$ip?risk=1&vpn=3&asn=1&port=1&seen=1&tag=0")
         val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
             connectTimeout = 7_000
@@ -221,32 +269,21 @@ internal object ProxyEndpointScanner {
             requestMethod = "GET"
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "ProxyGuard-Android")
+            setRequestProperty("Cache-Control", "no-store")
         }
         try {
             val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val jsonText = stream.use { readLimited(it, MAX_RESPONSE_BYTES) }
-            if (code !in 200..299) throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code).")
-            val root = JSONObject(jsonText)
-            val status = root.optString("status")
-            if (status != "ok" && status != "warning") {
-                throw IllegalStateException("مصدر السمعة لم يقبل الطلب: ${root.optString("message", status)}")
+            val stream = if (code in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+                    ?: throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code).")
             }
-            val data = root.optJSONObject(ip) ?: throw IllegalStateException("لم يرجع مصدر السمعة نتيجة لعنوان الخروج.")
-            val risk = data.optString("risk").toIntOrNull()
-                ?: throw IllegalStateException("مصدر السمعة لم يقدم درجة خطر رقمية؛ لن نخترع نسبة.")
-            if (risk !in 0..100) throw IllegalStateException("درجة الخطر الواردة خارج النطاق المتوقع.")
-            val proxy = data.optString("proxy").equals("yes", true)
-            val type = data.optString("type").takeUnless { it.isBlank() || it == "null" }
-            val vpn = type?.contains("vpn", ignoreCase = true) == true
-            return Reputation(
-                riskScore = risk,
-                proxyDetected = proxy,
-                vpnDetected = vpn,
-                networkType = data.optString("network", "").takeUnless { it.isBlank() || it == "null" },
-                provider = data.optString("provider", "").takeUnless { it.isBlank() || it == "null" },
-                country = data.optString("isocode", "").takeUnless { it.isBlank() || it == "null" }
-            )
+            val jsonText = stream.use { readLimited(it, MAX_RESPONSE_BYTES) }
+            if (code !in 200..299) {
+                throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code).")
+            }
+            return parseProxyCheckV2Response(ip, jsonText)
         } finally {
             connection.disconnect()
         }

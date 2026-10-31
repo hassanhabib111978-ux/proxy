@@ -1,8 +1,8 @@
-# ProxyGuard Android 0.4.0 — pre-use proxy scanner
+# ProxyGuard Android 0.4.1 — pre-use proxy scanner
 
 ## Release status
 
-Version **0.4.0** adds a user-initiated proxy endpoint test and reputation lookup. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
+Version **0.4.1** adds a user-initiated proxy endpoint test and reputation lookup. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
 
 ## Current behavior
 
@@ -16,9 +16,9 @@ The Android app performs the following checks locally:
 
 The app does not need a ProxyGuard backend or internet permission for these checks.
 
-## How results are interpreted
+## How local-only results are interpreted
 
-The app intentionally does **not** display a 0–100 score or percentage.
+The local device scan and imported CSV lookup intentionally do **not** produce a 0–100 security score or percentage. The separate live pre-use scan is described below and uses an external provider's score.
 
 - A visible VPN is reported as a VPN observation, not as a security risk.
 - A system proxy is reported only when Android exposes one through the platform API.
@@ -57,11 +57,11 @@ Android's platform APIs do not expose every app's network path to an ordinary ap
 
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The workflow runs `:app:testDebugUnitTest` and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.3.1-debug`. A debug APK is for controlled testing only and is not the production release artifact.
+The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.4.1-debug`. The runner uses its normal temporary Android debug signing key; artifacts from separate CI runs are not guaranteed to be update-compatible. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
 
 ## Privacy
 
-The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs until the user taps the pre-use proxy scan button. The app connects to the entered proxy, opens an HTTPS tunnel to api.ipify.org to discover the exit IP, then sends only that exit IP to ProxyCheck.io over a direct HTTPS connection for reputation data. Proxy username/password are not sent to the reputation provider, are not persisted by the app, and are cleared from the form after the scan. ProxyCheck.io may process the submitted exit IP under its own privacy policy. The no-key service allowance is limited and can change; current published documentation states 100 daily queries for unregistered users. The legacy CSV importer remains available but is not the source of the live risk percentage.
+The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs until the user taps the pre-use proxy scan button. The app connects to the entered proxy, opens an HTTPS tunnel to api.ipify.org to discover the exit IP, then sends only that exit IP to ProxyCheck.io over a direct HTTPS connection for reputation data. Proxy username/password are not sent to the reputation provider, are not persisted by the app, and are cleared from the form after the scan. For plain HTTP and SOCKS5 proxies, proxy authentication credentials are not protected by transport encryption; use HTTPS proxy transport or another trusted encrypted channel before entering sensitive credentials. ProxyCheck.io may process the submitted exit IP under its own privacy policy. The no-key service allowance is limited and can change; current published documentation states 100 daily queries for unregistered users. The legacy CSV importer remains available but is not the source of the live risk percentage.
 
 ## Production gates — not yet completed
 
@@ -75,11 +75,11 @@ The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs unt
 No “near-zero error” or universal detection claim is acceptable until measured against representative, independently labeled test data. Even then, publish the measured rates and test conditions rather than promising zero errors.
 
 
-## Pre-use proxy scan (0.4.0)
+## Pre-use proxy scan (0.4.1)
 
 The user can enter a proxy host, port, protocol (HTTP, HTTPS, SOCKS5), and optional username/password. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication). It then requests the public exit IP through the tested tunnel and queries ProxyCheck.io for its IP risk score and proxy/VPN classification.
 
-The displayed percentage is the upstream provider's **IP risk score**, shown as a practical risk/detectability indicator. It is **not** a calibrated probability that a particular website will detect or block the proxy. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
+The displayed value is the upstream provider's **IP risk score**. ProxyCheck.io documents this score as an assessment based on activity it has observed from the IP and whether it appears to be running proxy/VPN infrastructure. It is **not** a calibrated probability that a particular website will detect or block the proxy. Proxy/VPN classification (`proxy`, `type`) is displayed separately from the risk score. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
 
 Color bands: 0–19 green, 20–39 yellow-green, 40–59 yellow, and 60–100 red with progressively darker red at higher scores. The 60% threshold is the requested visual warning threshold; it is not a universal blocking threshold.
 
