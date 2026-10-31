@@ -18,6 +18,9 @@
                 android:value="User-started periodic proxy exit IP continuity monitoring with change alerts." />
         </service>
         <activity
+            android:name=".ProxyRiskAuditorActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
