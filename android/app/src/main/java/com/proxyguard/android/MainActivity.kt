@@ -150,6 +150,15 @@ class MainActivity : Activity() {
             setTextColor(0xFF526579.toInt())
         }
 
+        val riskAuditorButton = Button(this).apply {
+            text = "افتح واجهة التدقيق الاحترافية الجديدة"
+            isAllCaps = false
+            minHeight = dp(48)
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, ProxyRiskAuditorActivity::class.java))
+            }
+        }
+
         proxyNameInput = EditText(this).apply {
             hint = "اسم أو ملاحظة للبروكسي (اختياري)"
             textSize = 14f
@@ -469,6 +478,7 @@ class MainActivity : Activity() {
         }
         addSection(content, title, 0)
         addSection(content, subtitle, 8)
+        addSection(content, riskAuditorButton, 8)
         addSection(content, formCard, 8)
         addSection(content, scoreRow, 4)
         addSection(content, detailsToggle, 2)
