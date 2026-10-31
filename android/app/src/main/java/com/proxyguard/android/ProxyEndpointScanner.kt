@@ -389,6 +389,16 @@ internal object ProxyEndpointScanner {
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) return@mapNotNull null
             network to caps
         }
+        val active = manager.activeNetwork
+        val activeCaps = active?.let { manager.getNetworkCapabilities(it) }
+        if (activeCaps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true && candidates.isEmpty()) {
+            throw IllegalStateException(
+                "اكتشف ProxyGuard أن VPN نشط، لكن Android لم يوفّر شبكة فعلية مستقلة للاختبار. أوقف Tun2TAP مؤقتاً أو اسمح للتطبيق بالوصول إلى الشبكة الأساسية ثم أعد الفحص."
+            )
+        }
+        if (active != null && activeCaps != null &&
+            !activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+            activeCaps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return active
         return candidates.firstOrNull { it.second.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) }?.first
             ?: candidates.firstOrNull()?.first
     }
