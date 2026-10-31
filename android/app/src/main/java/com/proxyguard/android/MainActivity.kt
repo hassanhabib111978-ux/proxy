@@ -116,76 +116,86 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
+        val sidePadding = dp(14)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(36, 42, 36, 32)
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            setPadding(sidePadding, dp(8), sidePadding, dp(8))
             setBackgroundColor(0xFFF4F7FB.toInt())
-            // Android 15 enforces edge-to-edge for apps targeting API 35.
-            // Keep the content clear of status/navigation bars on older and newer releases.
             setOnApplyWindowInsetsListener { view, insets ->
                 view.setPadding(
-                    36 + insets.systemWindowInsetLeft,
-                    42 + insets.systemWindowInsetTop,
-                    36 + insets.systemWindowInsetRight,
-                    32 + insets.systemWindowInsetBottom
+                    sidePadding + insets.systemWindowInsetLeft,
+                    dp(8) + insets.systemWindowInsetTop,
+                    sidePadding + insets.systemWindowInsetRight,
+                    dp(8) + insets.systemWindowInsetBottom
                 )
                 insets
             }
         }
-        val scroll = ScrollView(this)
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply { isFillViewport = true }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            setPadding(0, 0, 0, dp(12))
+        }
         val title = TextView(this).apply {
             text = "ProxyGuard"
-            textSize = 30f
+            textSize = 25f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(0xFF10243A.toInt())
         }
         val subtitle = TextView(this).apply {
-            text = "فحص مسبق للبروكسي وسمعة IP وكثافة المشاركة"
-            textSize = 16f
+            text = "افحص البروكسي قبل استخدامه"
+            textSize = 12f
             setTextColor(0xFF526579.toInt())
         }
-        // Optional label for the user's own reference; never sent to providers.
+
         proxyNameInput = EditText(this).apply {
-            hint = "اسم البروكسي (اختياري للتعريف فقط)"
-            textSize = 16f
+            hint = "اسم أو ملاحظة للبروكسي (اختياري)"
+            textSize = 14f
             setSingleLine(true)
             isSaveEnabled = false
         }
         proxyHostInput = EditText(this).apply {
-            hint = "ألصق عنوان IP أو اسم المضيف (يمكن IP:PORT)"
-            textSize = 16f
+            hint = "عنوان IP أو اسم المضيف"
+            textSize = 15f
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             setSingleLine(true)
             isSaveEnabled = false
         }
         proxyPortInput = EditText(this).apply {
-            hint = "المنفذ (مثل 8080 أو 1080) — اختياري إذا أضفته إلى IP:PORT"
-            textSize = 14f
+            hint = "منفذ المزوّد"
+            textSize = 15f
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setSingleLine(true)
             isSaveEnabled = false
         }
         proxyProtocolSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, arrayOf("HTTP", "HTTPS", "SOCKS5")).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            }
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_item,
+                arrayOf("اختر النوع", "HTTP", "HTTPS", "SOCKS5")
+            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            setSelection(0)
         }
         proxyUsernameInput = EditText(this).apply {
-            hint = "اسم المستخدم / Login (إذا طلبه البروكسي)"
-            textSize = 16f
+            hint = "اسم المستخدم / Login"
+            textSize = 14f
             setSingleLine(true)
             isSaveEnabled = false
         }
         proxyPasswordInput = EditText(this).apply {
-            hint = "كلمة المرور (إذا طلبها البروكسي)"
-            textSize = 16f
+            hint = "كلمة المرور"
+            textSize = 14f
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
             isSaveEnabled = false
         }
         val pasteProxyButton = Button(this).apply {
             text = "لصق"
+            textSize = 13f
             isAllCaps = false
+            minHeight = dp(46)
             setOnClickListener {
                 val clipboard = getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
                 val pasted = try {
@@ -196,22 +206,24 @@ class MainActivity : Activity() {
                     Toast.makeText(this@MainActivity, "لا يوجد نص متاح للصق.", Toast.LENGTH_SHORT).show()
                 } else {
                     proxyHostInput.setText(pasted)
-                    Toast.makeText(this@MainActivity, "تم لصق العنوان في الحقل.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "تم لصق العنوان. راجع المنفذ والنوع.", Toast.LENGTH_SHORT).show()
                 }
             }
         }
         proxyScanButton = Button(this).apply {
             text = "افحص البروكسي الآن"
-            textSize = 18f
+            textSize = 17f
             isAllCaps = false
-            minHeight = dp(54)
+            minHeight = dp(52)
             setOnClickListener { runProxyScan() }
         }
+
         watchIntervalSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item,
-                arrayOf("كل دقيقة", "كل دقيقتين", "كل 5 دقائق")).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            }
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_item,
+                arrayOf("كل دقيقة", "كل دقيقتين", "كل 5 دقائق")
+            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
             setSelection(1)
         }
         watchStartButton = Button(this).apply {
@@ -225,8 +237,8 @@ class MainActivity : Activity() {
             setOnClickListener { stopIpWatch() }
         }
         watchStatusText = TextView(this).apply {
-            text = "المراقبة متوقفة. ابدأها بعد إدخال بيانات البروكسي."
-            textSize = 14f
+            text = "المراقبة متوقفة."
+            textSize = 13f
             setTextColor(0xFF475569.toInt())
         }
         watchHistoryButton = Button(this).apply {
@@ -234,150 +246,241 @@ class MainActivity : Activity() {
             isAllCaps = false
             setOnClickListener { showIpWatchHistory() }
         }
-        val scan = Button(this).apply {
+        val localScanButton = Button(this).apply {
             text = "فحص إعدادات اتصال الجهاز"
+            isAllCaps = false
             setOnClickListener { runLocalScan() }
         }
-        val checkIp = Button(this).apply {
-            text = "فحص عنوان مقابل قاعدة CSV المحلية"
+        val checkIpButton = Button(this).apply {
+            text = "فحص IP مقابل قاعدة CSV المحلية"
+            isAllCaps = false
             setOnClickListener { inspectIp(ipInput.text.toString().trim()) }
         }
-        val import = Button(this).apply {
+        val importDatabaseButton = Button(this).apply {
             text = "استيراد قاعدة بيانات CSV"
+            isAllCaps = false
             setOnClickListener { openDatabasePicker() }
         }
         ipInput = EditText(this).apply {
-            hint = "عنوان IP رقمي لفحص قاعدة CSV فقط"
-            textSize = 15f
+            hint = "عنوان IP رقمي للفحص المحلي"
+            textSize = 14f
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             setSingleLine(true)
         }
-        val formCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(14))
-            background = indicatorBackground(Color.WHITE)
-        }
+
         fun fieldLabel(value: String) = TextView(this).apply {
             text = value
-            textSize = 13f
+            textSize = 12f
             setTextColor(0xFF526579.toInt())
-            setPadding(0, dp(5), 0, dp(4))
+            setPadding(0, dp(3), 0, dp(2))
+        }
+        fun addGap(target: LinearLayout, height: Int = 5) {
+            target.addView(android.view.View(this), LinearLayout.LayoutParams(1, dp(height)))
+        }
+
+        val formCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = indicatorBackground(Color.WHITE)
         }
         val addressRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
-            addView(proxyHostInput, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(pasteProxyButton, LinearLayout.LayoutParams(dp(76), dp(50)).apply {
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            addView(proxyHostInput, LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(pasteProxyButton, LinearLayout.LayoutParams(dp(68), dp(46)).apply {
+                marginStart = dp(6)
+            })
+        }
+        val portColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        portColumn.addView(fieldLabel("المنفذ"))
+        portColumn.addView(proxyPortInput)
+        val protocolColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        protocolColumn.addView(fieldLabel("نوع البروكسي كما حدده المزوّد"))
+        protocolColumn.addView(proxyProtocolSpinner)
+        val connectionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            addView(portColumn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.42f))
+            addView(protocolColumn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.58f).apply {
                 marginStart = dp(8)
             })
         }
-        listOf(
-            fieldLabel("اسم البروكسي / ملاحظة"),
-            proxyNameInput,
-            fieldLabel("عنوان البروكسي — IP أو اسم المضيف"),
-            addressRow,
-            fieldLabel("المنفذ"),
-            proxyPortInput,
-            fieldLabel("نوع البروكسي"),
-            proxyProtocolSpinner,
-            fieldLabel("اسم المستخدم (اختياري)"),
-            proxyUsernameInput,
-            fieldLabel("كلمة المرور (اختيارية)"),
-            proxyPasswordInput,
-            proxyScanButton,
-            fieldLabel("فاصل التحقق الدوري من عنوان الخروج"),
-            watchIntervalSpinner,
-            watchStartButton,
-            watchStopButton,
-            watchStatusText,
-            watchHistoryButton
-        ).forEach { view ->
-            formCard.addView(view, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(7) })
+
+        val credentialsBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = android.view.View.GONE
         }
-        val diagnosticsTitle = TextView(this).apply {
-            text = "أدوات إضافية"
-            textSize = 18f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(0xFF10243A.toInt())
+        credentialsBox.addView(fieldLabel("اسم المستخدم"))
+        credentialsBox.addView(proxyUsernameInput)
+        credentialsBox.addView(fieldLabel("كلمة المرور"))
+        credentialsBox.addView(proxyPasswordInput)
+        val credentialsToggle = Button(this).apply {
+            text = "بيانات الدخول (اختيارية)  +"
+            isAllCaps = false
+            setOnClickListener {
+                val opening = credentialsBox.visibility != android.view.View.VISIBLE
+                credentialsBox.visibility = if (opening) android.view.View.VISIBLE else android.view.View.GONE
+                text = if (opening) "إخفاء بيانات الدخول  −" else "بيانات الدخول (اختيارية)  +"
+            }
         }
+        addGap(formCard, 2)
+        formCard.addView(fieldLabel("عنوان البروكسي"))
+        formCard.addView(addressRow)
+        addGap(formCard)
+        formCard.addView(connectionRow)
+        addGap(formCard, 2)
+        formCard.addView(credentialsToggle)
+        formCard.addView(credentialsBox)
+        addGap(formCard, 4)
+        formCard.addView(proxyScanButton)
+
         indicatorCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
             background = indicatorBackground(0xFFF1F5F9.toInt())
         }
         indicatorTitle = TextView(this).apply {
-            text = "نتيجة الفحص"
-            textSize = 14f
+            text = "مخاطر عنوان IP"
+            textSize = 12f
             setTextColor(0xFF1E293B.toInt())
+            maxLines = 2
         }
         indicatorValue = TextView(this).apply {
-            text = "بانتظار الفحص"
-            textSize = 28f
+            text = "—"
+            textSize = 25f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(0xFF64748B.toInt())
         }
         indicatorLevel = TextView(this).apply {
-            text = "ستظهر هنا درجة المخاطر ومستوى التصنيف بعد فحص البروكسي."
-            textSize = 14f
+            text = "تظهر النتيجة بعد الفحص."
+            textSize = 11f
+            maxLines = 4
             setTextColor(0xFF475569.toInt())
         }
         indicatorCard.addView(indicatorTitle)
-        indicatorCard.addView(indicatorValue, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(6) })
-        indicatorCard.addView(indicatorLevel, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(2) })
+        indicatorCard.addView(indicatorValue)
+        indicatorCard.addView(indicatorLevel)
 
         detectabilityCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
             background = indicatorBackground(0xFFF1F5F9.toInt())
         }
         detectabilityTitle = TextView(this).apply {
-            text = "مؤشر ظهور عنوان IP في قواعد تصنيف البروكسي/VPN"
-            textSize = 14f
+            text = "ثقة التصنيف"
+            textSize = 12f
+            maxLines = 2
             setTextColor(0xFF1E293B.toInt())
         }
         detectabilityValue = TextView(this).apply {
-            text = "بانتظار الفحص"
-            textSize = 26f
+            text = "—"
+            textSize = 25f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(0xFF64748B.toInt())
         }
         detectabilityLevel = TextView(this).apply {
-            text = "سيظهر هنا ما إذا كان عنوان الخروج مصنّفاً في قاعدة بيانات المصدر."
-            textSize = 13f
+            text = "مؤشر منفصل عن درجة المخاطر."
+            textSize = 11f
+            maxLines = 4
             setTextColor(0xFF475569.toInt())
         }
         detectabilityCard.addView(detectabilityTitle)
-        detectabilityCard.addView(detectabilityValue, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(6) })
-        detectabilityCard.addView(detectabilityLevel, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(2) })
-        output = TextView(this).apply {
-            textSize = 15f
-            setTextColor(0xFF1D3045.toInt())
-            setPadding(0, 24, 0, 24)
-        }
-        val privacy = TextView(this).apply {
-            text = "الخصوصية: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io v3 لفحص السمعة وتقدير كثافة الأجهزة وسجل النشاط. لا تُرسل بيانات الاعتماد إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة، وقد يعالج المزوّد عنوان IP وفق سياسته. تنبيه أمني: HTTP وSOCKS5 العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ استخدم HTTPS Proxy أو قناة موثوقة، ولا تدخل كلمة مرور حساسة عبر بروكسي غير مشفر. عرض DNS ليس اختبار تسريب DNS."
-            textSize = 13f
-            setTextColor(0xFF526579.toInt())
-        }
-        listOf(title, subtitle, formCard, indicatorCard, detectabilityCard, output, diagnosticsTitle, ipInput, checkIp, scan, import, privacy).forEach {
-            content.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = 18
+        detectabilityCard.addView(detectabilityValue)
+        detectabilityCard.addView(detectabilityLevel)
+
+        val scoreRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            addView(indicatorCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(detectabilityCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = dp(8)
             })
         }
-        output.text = "ألصق عنوان البروكسي، وأدخل المنفذ ونوع الاتصال وبيانات الدخول عند الحاجة، ثم اضغط «افحص البروكسي الآن».\n\nسيظهر هنا بلد عنوان الخروج، ونوع الشبكة، وتقدير الأجهزة المشاركة، ومعلومات السمعة."
+        output = TextView(this).apply {
+            textSize = 13f
+            setTextColor(0xFF1D3045.toInt())
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        output.text = "لا يوجد تقرير بعد. أدخل بيانات المزوّد ثم اضغط «افحص البروكسي الآن»."
+        val detailsPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = android.view.View.GONE
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            background = indicatorBackground(Color.WHITE)
+            addView(output)
+        }
+        val detailsToggle = Button(this).apply {
+            text = "تفاصيل تقرير الفحص  +"
+            isAllCaps = false
+            setOnClickListener {
+                val opening = detailsPanel.visibility != android.view.View.VISIBLE
+                detailsPanel.visibility = if (opening) android.view.View.VISIBLE else android.view.View.GONE
+                text = if (opening) "إخفاء تفاصيل التقرير  −" else "تفاصيل تقرير الفحص  +"
+            }
+        }
+
+        val extrasToggle = Button(this).apply {
+            text = "الإضافات والأدوات  +"
+            isAllCaps = false
+        }
+        val extrasPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = indicatorBackground(Color.WHITE)
+            visibility = android.view.View.GONE
+        }
+        extrasToggle.setOnClickListener {
+            val opening = extrasPanel.visibility != android.view.View.VISIBLE
+            extrasPanel.visibility = if (opening) android.view.View.VISIBLE else android.view.View.GONE
+            extrasToggle.text = if (opening) "إخفاء الإضافات  −" else "الإضافات والأدوات  +"
+        }
+        extrasPanel.addView(fieldLabel("اسم البروكسي / ملاحظة محلية"))
+        extrasPanel.addView(proxyNameInput)
+        addGap(extrasPanel)
+        extrasPanel.addView(fieldLabel("مراقبة تغيّر عنوان الخروج"))
+        extrasPanel.addView(fieldLabel("فاصل التحقق الدوري"))
+        extrasPanel.addView(watchIntervalSpinner)
+        extrasPanel.addView(watchStartButton)
+        extrasPanel.addView(watchStopButton)
+        extrasPanel.addView(watchStatusText)
+        extrasPanel.addView(watchHistoryButton)
+        addGap(extrasPanel, 8)
+        extrasPanel.addView(fieldLabel("أدوات تشخيص الجهاز وقاعدة البيانات"))
+        extrasPanel.addView(localScanButton)
+        extrasPanel.addView(fieldLabel("فحص IP مقابل قاعدة محلية مستوردة"))
+        extrasPanel.addView(ipInput)
+        extrasPanel.addView(checkIpButton)
+        extrasPanel.addView(importDatabaseButton)
+        val privacy = TextView(this).apply {
+            text = "الخصوصية والحدود: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io v3 لفحص السمعة. لا تُرسل بيانات الدخول إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة. HTTP وSOCKS5 العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ لا تدخل كلمة مرور حساسة عبر بروكسي غير موثوق. فحص DNS المعروض ليس اختبار تسريب DNS."
+            textSize = 11f
+            setTextColor(0xFF526579.toInt())
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        extrasPanel.addView(privacy)
+
+        fun addSection(target: LinearLayout, view: android.view.View, bottom: Int = 7) {
+            target.addView(view, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(bottom) })
+        }
+        addSection(content, title, 0)
+        addSection(content, subtitle, 8)
+        addSection(content, formCard, 8)
+        addSection(content, scoreRow, 4)
+        addSection(content, detailsToggle, 2)
+        addSection(content, detailsPanel, 6)
+        addSection(content, extrasToggle, 2)
+        addSection(content, extrasPanel, 4)
+
         scroll.addView(content)
-        root.addView(scroll)
+        root.addView(scroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
         setContentView(root)
     }
 
