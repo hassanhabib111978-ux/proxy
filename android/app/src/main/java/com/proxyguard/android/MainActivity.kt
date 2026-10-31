@@ -585,6 +585,12 @@ class MainActivity : Activity() {
         indicatorLevel.text = detail
         indicatorLevel.setTextColor(0xFF475569.toInt())
         indicatorCard.background = indicatorBackground(0xFFEFF6FF.toInt())
+        detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف البروكسي/VPN"
+        detectabilityValue.text = "غير متاح"
+        detectabilityValue.setTextColor(0xFF64748B.toInt())
+        detectabilityLevel.text = "لا توجد نتيجة تصنيف صالحة من فحص البروكسي الحالي."
+        detectabilityLevel.setTextColor(0xFF475569.toInt())
+        detectabilityCard.background = indicatorBackground(0xFFF1F5F9.toInt())
     }
 
     private fun indicatorBackground(color: Int) = GradientDrawable().apply {
