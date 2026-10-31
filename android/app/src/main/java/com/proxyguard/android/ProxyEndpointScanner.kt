@@ -359,6 +359,11 @@ internal object ProxyEndpointScanner {
         require((endpoint.username?.length ?: 0) <= 255 && (endpoint.password?.length ?: 0) <= 255) { "بيانات المصادقة أطول من المسموح." }
     }
 
+    internal fun currentExitIp(endpoint: ProxyEndpoint): String {
+        validate(endpoint)
+        return fetchExitIp(endpoint)
+    }
+
     private fun fetchExitIp(endpoint: ProxyEndpoint): String {
         val raw = Socket()
         raw.connect(InetSocketAddress(endpoint.host, endpoint.port), CONNECT_TIMEOUT_MS)

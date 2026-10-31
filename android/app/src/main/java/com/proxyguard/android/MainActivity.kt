@@ -1,6 +1,10 @@
 package com.proxyguard.android
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Intent
 import android.content.ClipboardManager
 import android.graphics.Color
@@ -60,6 +64,11 @@ class MainActivity : Activity() {
     private lateinit var proxyUsernameInput: EditText
     private lateinit var proxyPasswordInput: EditText
     private lateinit var proxyScanButton: Button
+    private lateinit var watchIntervalSpinner: Spinner
+    private lateinit var watchStatusText: TextView
+    private lateinit var watchStartButton: Button
+    private lateinit var watchStopButton: Button
+    private lateinit var watchHistoryButton: Button
     private val scanExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val dbFile by lazy { File(filesDir, "proxyguard-ip-intel.csv") }
@@ -69,6 +78,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_DATABASE = 41
+        private const val REQUEST_POST_NOTIFICATIONS = 42
         private const val MAX_DATABASE_BYTES = 5 * 1024 * 1024
     }
 
@@ -76,6 +86,26 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         loadDatabase()
         render()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshIpWatchStatus()
+        mainHandler.post(watchStatusRefresh)
+    }
+
+    override fun onPause() {
+        mainHandler.removeCallbacks(watchStatusRefresh)
+        super.onPause()
+    }
+
+    private val watchStatusRefresh = object : Runnable {
+        override fun run() {
+            if (!activityDestroyed) {
+                refreshIpWatchStatus()
+                mainHandler.postDelayed(this, 5_000L)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -177,6 +207,33 @@ class MainActivity : Activity() {
             minHeight = dp(54)
             setOnClickListener { runProxyScan() }
         }
+        watchIntervalSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item,
+                arrayOf("كل دقيقة", "كل دقيقتين", "كل 5 دقائق")).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+            setSelection(1)
+        }
+        watchStartButton = Button(this).apply {
+            text = "ابدأ مراقبة تغيّر IP"
+            isAllCaps = false
+            setOnClickListener { startIpWatch() }
+        }
+        watchStopButton = Button(this).apply {
+            text = "إيقاف المراقبة"
+            isAllCaps = false
+            setOnClickListener { stopIpWatch() }
+        }
+        watchStatusText = TextView(this).apply {
+            text = "المراقبة متوقفة. ابدأها بعد إدخال بيانات البروكسي."
+            textSize = 14f
+            setTextColor(0xFF475569.toInt())
+        }
+        watchHistoryButton = Button(this).apply {
+            text = "عرض سجل تغيّرات IP"
+            isAllCaps = false
+            setOnClickListener { showIpWatchHistory() }
+        }
         val scan = Button(this).apply {
             text = "فحص إعدادات اتصال الجهاز"
             setOnClickListener { runLocalScan() }
@@ -227,7 +284,13 @@ class MainActivity : Activity() {
             proxyUsernameInput,
             fieldLabel("كلمة المرور (اختيارية)"),
             proxyPasswordInput,
-            proxyScanButton
+            proxyScanButton,
+            fieldLabel("فاصل التحقق الدوري من عنوان الخروج"),
+            watchIntervalSpinner,
+            watchStartButton,
+            watchStopButton,
+            watchStatusText,
+            watchHistoryButton
         ).forEach { view ->
             formCard.addView(view, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -463,6 +526,145 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+
+    private fun startIpWatch() {
+        val endpoint = watchEndpointFromInputs() ?: return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_POST_NOTIFICATIONS
+            )
+            Toast.makeText(this, "اسمح بالإشعارات حتى تصلك تنبيهات تغيّر عنوان IP.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val interval = when (watchIntervalSpinner.selectedItemPosition) {
+            0 -> 1
+            2 -> 5
+            else -> 2
+        }
+        try {
+            val intent = ProxyIpWatchService.createStartIntent(this, endpoint, interval)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+            watchStatusText.text = "بدأت خدمة المراقبة؛ يجري تسجيل عنوان الخروج الأساسي."
+            Toast.makeText(this, "بدأت مراقبة عنوان الخروج.", Toast.LENGTH_SHORT).show()
+        } catch (error: Exception) {
+            watchStatusText.text = "تعذر بدء المراقبة: " + (error.message ?: "خطأ غير معروف")
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_POST_NOTIFICATIONS) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                startIpWatch()
+            } else {
+                Toast.makeText(this, "لن تصلك تنبيهات تغيّر IP دون السماح بإشعارات التطبيق.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun watchEndpointFromInputs(): ProxyEndpoint? {
+        val rawAddress = proxyHostInput.text.toString().trim()
+        var host = rawAddress
+        var port = proxyPortInput.text.toString().trim().toIntOrNull()
+        if (rawAddress.startsWith("[") && rawAddress.contains("]:")) {
+            val close = rawAddress.indexOf("]:")
+            val embeddedPort = rawAddress.substring(close + 2).toIntOrNull()
+            if (embeddedPort != null) {
+                host = rawAddress.substring(1, close)
+                port = embeddedPort
+            }
+        } else if (rawAddress.count { it == ':' } == 1) {
+            val embeddedPort = rawAddress.substringAfterLast(':').toIntOrNull()
+            if (embeddedPort != null) {
+                host = rawAddress.substringBeforeLast(':')
+                port = embeddedPort
+            }
+        }
+        if (host.isBlank() || port == null || port !in 1..65535) {
+            Toast.makeText(this, "أدخل عنوان البروكسي ومنفذه بصورة صحيحة أولاً.", Toast.LENGTH_LONG).show()
+            return null
+        }
+        val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
+        val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
+        if ((username == null) != (password == null)) {
+            Toast.makeText(this, "أدخل اسم المستخدم وكلمة المرور معاً أو اتركهما فارغين.", Toast.LENGTH_LONG).show()
+            return null
+        }
+        val protocol = when (proxyProtocolSpinner.selectedItem?.toString()) {
+            "HTTPS" -> ProxyProtocol.HTTPS
+            "SOCKS5" -> ProxyProtocol.SOCKS5
+            else -> ProxyProtocol.HTTP
+        }
+        return ProxyEndpoint(host, port, protocol, username, password)
+    }
+
+    private fun stopIpWatch() {
+        stopService(Intent(this, ProxyIpWatchService::class.java))
+        refreshIpWatchStatus()
+        Toast.makeText(this, "تم طلب إيقاف مراقبة IP.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun refreshIpWatchStatus() {
+        if (!::watchStatusText.isInitialized) return
+        val prefs = getSharedPreferences(ProxyIpWatchService.PREFS_NAME, MODE_PRIVATE)
+        val active = prefs.getBoolean(ProxyIpWatchService.KEY_ACTIVE, false)
+        val status = prefs.getString(ProxyIpWatchService.KEY_STATUS, "المراقبة متوقفة").orEmpty()
+        val interval = prefs.getInt(ProxyIpWatchService.KEY_INTERVAL_MINUTES, 2)
+        val lastIp = prefs.getString(ProxyIpWatchService.KEY_LAST_IP, null)
+        val initialIp = prefs.getString(ProxyIpWatchService.KEY_INITIAL_IP, null)
+        val changeCount = prefs.getInt(ProxyIpWatchService.KEY_CHANGE_COUNT, 0)
+        val lastFrom = prefs.getString(ProxyIpWatchService.KEY_LAST_CHANGE_FROM, null)
+        val lastTo = prefs.getString(ProxyIpWatchService.KEY_LAST_CHANGE_TO, null)
+        val lastChangeAt = prefs.getLong(ProxyIpWatchService.KEY_LAST_CHANGE_AT, 0L)
+        val lastCheckAt = prefs.getLong(ProxyIpWatchService.KEY_LAST_CHECK_AT, 0L)
+        val staleAfter = interval * 60_000L * 2L + 45_000L
+        val heartbeatStale = active && lastCheckAt > 0L &&
+            System.currentTimeMillis() - lastCheckAt > staleAfter
+        val displayActive = active && !heartbeatStale
+        val builder = StringBuilder()
+        builder.append(if (displayActive) "المراقبة نشطة" else if (heartbeatStale) "لا يصل تحديث من خدمة المراقبة" else "المراقبة متوقفة")
+        builder.append("\n").append(status)
+        if (initialIp != null) builder.append("\nعنوان البداية: ").append(initialIp)
+        if (lastIp != null) builder.append("\nعنوان الخروج المرصود حالياً: ").append(lastIp)
+        if (displayActive) builder.append("\nفاصل الفحص: كل ").append(interval).append(" دقيقة")
+        builder.append("\nعدد تغيّرات IP المسجلة في الجلسة: ").append(changeCount)
+        if (lastFrom != null && lastTo != null && lastChangeAt > 0L) {
+            val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date(lastChangeAt))
+            builder.append("\nآخر تغيير: ").append(lastFrom).append(" ← ").append(lastTo)
+            builder.append("\nوقت الرصد: ").append(time)
+        }
+        if (lastCheckAt > 0L) {
+            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date(lastCheckAt))
+            builder.append("\nآخر محاولة فحص: ").append(time)
+        }
+        watchStatusText.text = builder.toString()
+        watchStartButton.isEnabled = !displayActive
+        watchStopButton.isEnabled = active
+    }
+
+    private fun showIpWatchHistory() {
+        val historyFile = File(filesDir, ProxyIpWatchService.HISTORY_FILE)
+        val history = if (historyFile.exists()) {
+            historyFile.readText(Charsets.UTF_8)
+        } else {
+            "لم يتم تسجيل أي تغيّر في عنوان IP حتى الآن."
+        }
+        AlertDialog.Builder(this)
+            .setTitle("سجل تغيّرات عنوان IP")
+            .setMessage(history.takeLast(12_000))
+            .setPositiveButton("إغلاق", null)
+            .show()
     }
 
     private fun riskColor(score: Int): Int {

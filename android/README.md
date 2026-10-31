@@ -1,8 +1,8 @@
-# ProxyGuard Android 0.5.0 — pre-use proxy scanner
+# ProxyGuard Android 0.6.0 — pre-use proxy scanner
 
 ## Release status
 
-Version **0.5.0** adds ProxyCheck v3 intelligence, including device estimates behind the exit IP and subnet, detection confidence, and attack-history counts. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
+Version **0.6.0** adds ProxyCheck v3 intelligence, including device estimates behind the exit IP and subnet, detection confidence, and attack-history counts. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
 
 ## Current behavior
 
@@ -57,7 +57,7 @@ Android's platform APIs do not expose every app's network path to an ordinary ap
 
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.5.0-debug`. CI uses a persistent development-only debug signing identity to keep CI test APKs update-compatible. Do not reuse this identity for commercial releases; release builds require a separately protected private signing key. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
+The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.6.0-debug`. CI uses a persistent development-only debug signing identity to keep CI test APKs update-compatible. Do not reuse this identity for commercial releases; release builds require a separately protected private signing key. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
 
 ## Privacy
 
@@ -84,3 +84,12 @@ The result has two independent provider indicators, not one ProxyGuard-calibrate
 Color bands in the Android UI: 0–39 green, 40–74 yellow, and 75–100 red (darker red from 90). The provider IP risk score and the source-classification confidence use these display bands independently. The classification card shows the provider's confidence in its positive Proxy/VPN/anonymity/network-category classification; 0/100 means this source returned no positive detection flags at scan time, not that the proxy is impossible to detect. Missing confidence is shown as unavailable, not invented. These are display bands, not universal website blocking thresholds.
 
 The exit IP is disclosed to ProxyCheck.io for lookup. Proxy host, port, and credentials are not included in that reputation request. The app currently uses the provider's no-key endpoint; availability, query limits, response fields, and terms are controlled by the provider and must be reviewed before commercial launch. No guarantee is made that every proxy type, authentication scheme, DNS leak, WebRTC leak, or website-specific detection method is covered.
+
+
+## IP continuity monitoring (0.6.0)
+
+The user can explicitly start and stop a foreground monitoring session for the entered proxy endpoint. The monitor runs a fresh end-to-end HTTPS tunnel through that same host, port, protocol and authentication pair to api.ipify.org at a user-selected interval of 1, 2, or 5 minutes. It records the first successful exit IP as the baseline. A later, different HTTPS-observed exit IP triggers an Android notification containing the old and new addresses, and is appended to a bounded local history (up to 100 changes). Failed checks do not count as IP changes; the monitor reports the failure and retries at the next interval.
+
+The watcher does not query ProxyCheck on every poll and does not disconnect the proxy or alter Android network routing. Proxy credentials are passed to the in-process foreground service and kept in memory while it runs; they are not written into the watch preferences or the history file. The watcher is START_NOT_STICKY: if Android or the device vendor terminates the service/process, monitoring may stop and must be started again. Notification permission is required on Android 13+ for visible change alerts. The special-use foreground service declaration is for this explicit user-started network continuity task and must be reviewed against Google Play foreground-service policy before any Play distribution.
+
+This measurement confirms a change in the IP observed by api.ipify.org through a new proxy tunnel. It does not guarantee that every destination sees the same egress IP: some providers rotate by destination, per TCP connection, request, sticky-session token, or provider policy. Use the provider's documented sticky-session credentials/token if a stable session is intended. The watcher reuses the same proxy endpoint and credentials, but does not invent or manage vendor-specific session tokens. It provides confirmed-change alerts, not a pre-change prediction. A predicted percentage is intentionally omitted until sufficient independently observed change history exists.
