@@ -233,7 +233,9 @@ internal object ProxyEndpointScanner {
             vpnDetected = vpn,
             classificationType = classification,
             provider = optionalText(network, "provider"),
-            country = optionalText(location, "country_code"),
+            country = optionalText(location, "country")
+                ?: optionalText(location, "country_name")
+                ?: optionalText(location, "country_code"),
             asn = optionalText(network, "asn"),
             estimatedDevicesAtAddress = optionalNonNegativeInt(estimate, "address"),
             estimatedDevicesInSubnet = optionalNonNegativeInt(estimate, "subnet"),
