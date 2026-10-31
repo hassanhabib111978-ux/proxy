@@ -570,7 +570,7 @@ internal object ProxyEndpointScanner {
 
     private fun lookupReputationV2(ip: String, network: Network?): ProxyReputation {
         val url = URL("https://proxycheck.io/v2/$ip?risk=1&vpn=1&asn=1&days=7&tag=0")
-        val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
+        val connection = ((network?.openConnection(url) ?: url.openConnection(Proxy.NO_PROXY)) as HttpURLConnection).apply {
             connectTimeout = 7_000
             readTimeout = 7_000
             requestMethod = "GET"
