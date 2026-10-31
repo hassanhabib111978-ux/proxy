@@ -544,8 +544,6 @@ internal object ProxyEndpointScanner {
             if (input.read() != 0x01 || input.read() != 0x00) throw IllegalStateException("فشل توثيق SOCKS5.")
         } else if (method != 0x00) {
             throw IllegalStateException("طريقة توثيق SOCKS5 غير مدعومة.")
-        } else if (hasCredentials) {
-            throw IllegalStateException("البروكسي لم يقبل طريقة التوثيق المطلوبة.")
         }
 
         val host = IP_ECHO_HOST.toByteArray(StandardCharsets.US_ASCII)
