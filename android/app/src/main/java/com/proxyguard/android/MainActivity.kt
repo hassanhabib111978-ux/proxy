@@ -498,7 +498,7 @@ class MainActivity : Activity() {
     private fun parseProxyAddressInputs(): Pair<String, Int?> {
         var rawAddress = normalizeDigits(proxyHostInput.text.toString().trim())
         var port = normalizeDigits(proxyPortInput.text.toString().trim()).toIntOrNull()
-        listOf("http://", "https://", "socks5://", "socks5h://").forEach { scheme ->
+        listOf("http://", "https://", "socks://", "socks5://", "socks5h://").forEach { scheme ->
             if (rawAddress.startsWith(scheme, ignoreCase = true)) {
                 rawAddress = rawAddress.substring(scheme.length)
             }
