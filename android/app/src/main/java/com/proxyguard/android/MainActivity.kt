@@ -2,6 +2,7 @@ package com.proxyguard.android
 
 import android.app.Activity
 import android.content.Intent
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
@@ -17,6 +18,7 @@ import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.ArrayAdapter
 import android.widget.TextView
+import android.widget.Toast
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
@@ -47,6 +49,7 @@ class MainActivity : Activity() {
     private lateinit var indicatorTitle: TextView
     private lateinit var indicatorValue: TextView
     private lateinit var indicatorLevel: TextView
+    private lateinit var proxyNameInput: EditText
     private lateinit var proxyHostInput: EditText
     private lateinit var proxyPortInput: EditText
     private lateinit var proxyProtocolSpinner: Spinner
@@ -107,23 +110,26 @@ class MainActivity : Activity() {
             textSize = 16f
             setTextColor(0xFF526579.toInt())
         }
-        ipInput = EditText(this).apply {
-            hint = "أدخل عنوان IP للبروكسي (اختياري)"
+        // Optional label for the user's own reference; never sent to providers.
+        proxyNameInput = EditText(this).apply {
+            hint = "اسم البروكسي (اختياري للتعريف فقط)"
             textSize = 16f
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
             setSingleLine(true)
+            isSaveEnabled = false
         }
         proxyHostInput = EditText(this).apply {
-            hint = "عنوان البروكسي أو اسم المضيف"
+            hint = "ألصق عنوان IP أو اسم المضيف (يمكن IP:PORT)"
             textSize = 16f
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             setSingleLine(true)
+            isSaveEnabled = false
         }
         proxyPortInput = EditText(this).apply {
-            hint = "المنفذ (مثلاً 8080 أو 1080)"
-            textSize = 16f
+            hint = "المنفذ (مثل 8080 أو 1080) — اختياري إذا أضفته إلى IP:PORT"
+            textSize = 14f
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setSingleLine(true)
+            isSaveEnabled = false
         }
         proxyProtocolSpinner = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, arrayOf("HTTP", "HTTPS", "SOCKS5")).also {
@@ -131,33 +137,104 @@ class MainActivity : Activity() {
             }
         }
         proxyUsernameInput = EditText(this).apply {
-            hint = "اسم المستخدم (اختياري)"
+            hint = "اسم المستخدم / Login (إذا طلبه البروكسي)"
             textSize = 16f
             setSingleLine(true)
             isSaveEnabled = false
         }
         proxyPasswordInput = EditText(this).apply {
-            hint = "كلمة المرور (اختيارية)"
+            hint = "كلمة المرور (إذا طلبها البروكسي)"
             textSize = 16f
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
             isSaveEnabled = false
         }
+        val pasteProxyButton = Button(this).apply {
+            text = "لصق"
+            isAllCaps = false
+            setOnClickListener {
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
+                val pasted = try {
+                    clipboard?.primaryClip?.takeIf { it.itemCount > 0 }
+                        ?.getItemAt(0)?.coerceToText(this@MainActivity)?.toString()?.trim()
+                } catch (_: Exception) { null }
+                if (pasted.isNullOrBlank()) {
+                    Toast.makeText(this@MainActivity, "لا يوجد نص متاح للصق.", Toast.LENGTH_SHORT).show()
+                } else {
+                    proxyHostInput.setText(pasted)
+                    Toast.makeText(this@MainActivity, "تم لصق العنوان في الحقل.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
         proxyScanButton = Button(this).apply {
-            text = "افحص البروكسي قبل الاستخدام"
+            text = "افحص البروكسي الآن"
+            textSize = 18f
+            isAllCaps = false
+            minHeight = dp(54)
             setOnClickListener { runProxyScan() }
         }
         val scan = Button(this).apply {
-            text = "افحص إعدادات هذا الجهاز"
+            text = "فحص إعدادات اتصال الجهاز"
             setOnClickListener { runLocalScan() }
         }
         val checkIp = Button(this).apply {
-            text = "افحص IP مقابل قاعدة البيانات المحلية"
+            text = "فحص عنوان مقابل قاعدة CSV المحلية"
             setOnClickListener { inspectIp(ipInput.text.toString().trim()) }
         }
         val import = Button(this).apply {
             text = "استيراد قاعدة بيانات CSV"
             setOnClickListener { openDatabasePicker() }
+        }
+        ipInput = EditText(this).apply {
+            hint = "عنوان IP رقمي لفحص قاعدة CSV فقط"
+            textSize = 15f
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setSingleLine(true)
+        }
+        val formCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(14))
+            background = indicatorBackground(Color.WHITE)
+        }
+        fun fieldLabel(value: String) = TextView(this).apply {
+            text = value
+            textSize = 13f
+            setTextColor(0xFF526579.toInt())
+            setPadding(0, dp(5), 0, dp(4))
+        }
+        val addressRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            addView(proxyHostInput, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(pasteProxyButton, LinearLayout.LayoutParams(dp(76), dp(50)).apply {
+                marginStart = dp(8)
+            })
+        }
+        listOf(
+            fieldLabel("اسم البروكسي / ملاحظة"),
+            proxyNameInput,
+            fieldLabel("عنوان البروكسي — IP أو اسم المضيف"),
+            addressRow,
+            fieldLabel("المنفذ"),
+            proxyPortInput,
+            fieldLabel("نوع البروكسي"),
+            proxyProtocolSpinner,
+            fieldLabel("اسم المستخدم (اختياري)"),
+            proxyUsernameInput,
+            fieldLabel("كلمة المرور (اختيارية)"),
+            proxyPasswordInput,
+            proxyScanButton
+        ).forEach { view ->
+            formCard.addView(view, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(7) })
+        }
+        val diagnosticsTitle = TextView(this).apply {
+            text = "أدوات إضافية"
+            textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xFF10243A.toInt())
         }
         indicatorCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -197,27 +274,41 @@ class MainActivity : Activity() {
             textSize = 13f
             setTextColor(0xFF526579.toInt())
         }
-        listOf(title, subtitle, proxyHostInput, proxyPortInput, proxyProtocolSpinner, proxyUsernameInput, proxyPasswordInput, proxyScanButton, ipInput, scan, checkIp, import, indicatorCard, output, privacy).forEach {
+        listOf(title, subtitle, formCard, indicatorCard, output, diagnosticsTitle, ipInput, checkIp, scan, import, privacy).forEach {
             content.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 bottomMargin = 18
             })
         }
+        output.text = "ألصق عنوان البروكسي، وأدخل المنفذ ونوع الاتصال وبيانات الدخول عند الحاجة، ثم اضغط «افحص البروكسي الآن».\n\nسيظهر هنا بلد عنوان الخروج، ونوع الشبكة، وتقدير الأجهزة المشاركة، ومعلومات السمعة."
         scroll.addView(content)
         root.addView(scroll)
         setContentView(root)
-        runLocalScan()
     }
 
     private fun runProxyScan() {
-        val host = proxyHostInput.text.toString().trim()
-        val port = proxyPortInput.text.toString().trim().toIntOrNull()
+        val rawAddress = proxyHostInput.text.toString().trim()
+        var host = rawAddress
+        var port = proxyPortInput.text.toString().trim().toIntOrNull()
+        // Accept pasted host:port and [IPv6]:port; otherwise read the separate port field.
+        if (port == null && rawAddress.startsWith("[") && rawAddress.contains("]:")) {
+            val close = rawAddress.indexOf("]:")
+            host = rawAddress.substring(1, close)
+            port = rawAddress.substring(close + 2).toIntOrNull()
+        } else if (port == null && rawAddress.count { it == ':' } == 1) {
+            val pastedPort = rawAddress.substringAfterLast(':').toIntOrNull()
+            if (pastedPort != null) {
+                host = rawAddress.substringBeforeLast(':')
+                port = pastedPort
+            }
+        }
+        val proxyLabel = proxyNameInput.text.toString().trim()
         val protocol = when (proxyProtocolSpinner.selectedItem?.toString()) {
             "HTTPS" -> ProxyProtocol.HTTPS
             "SOCKS5" -> ProxyProtocol.SOCKS5
             else -> ProxyProtocol.HTTP
         }
         if (host.isBlank() || port == null || port !in 1..65535) {
-            updateIndicator("بيانات البروكسي", "بيانات غير مكتملة", "أدخل عنوان البروكسي ورقم منفذ صحيحاً.")
+            updateIndicator("بيانات البروكسي", "بيانات غير مكتملة", "ألصق عنوان IP أو اسم المضيف، ثم أدخل المنفذ في حقله أو ألصقه بصيغة IP:PORT.")
             return
         }
         val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
@@ -248,13 +339,14 @@ class MainActivity : Activity() {
                     indicatorCard.background = indicatorBackground(Color.argb(28, Color.red(color), Color.green(color), Color.blue(color)))
                     output.text = buildString {
                         appendLine("تقرير فحص البروكسي")
+                        if (proxyLabel.isNotBlank()) appendLine("اسم البروكسي: $proxyLabel")
                         appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore}/100")
                         appendLine("عنوان IP الخارج: ${result.exitIp}")
                         appendLine("Proxy مصنّف من المصدر: ${if (result.proxyDetected) "نعم" else "لا"}")
                         appendLine("VPN مصنّف من المصدر: ${if (result.vpnDetected) "نعم" else "لا"}")
                         result.classificationType?.let { appendLine("تصنيف العنوان لدى المصدر: $it") }
                         result.provider?.let { appendLine("المزوّد: $it") }
-                        result.country?.let { appendLine("رمز البلد: $it") }
+                        result.country?.let { appendLine("بلد عنوان الخروج / رمز البلد: $it") }
                         result.asn?.let { appendLine("رقم النظام المستقل ASN: $it") }
                         result.networkType?.let { appendLine("نوع الشبكة المسجل: $it") }
                         appendLine()
@@ -294,14 +386,15 @@ class MainActivity : Activity() {
     }
 
     private fun riskColor(score: Int): Int {
-        val safe = 0xFF16A34A.toInt()
+        val green = 0xFF16A34A.toInt()
         val yellow = 0xFFEAB308.toInt()
         val red = 0xFFEF4444.toInt()
-        val deepRed = 0xFF7F1D1D.toInt()
+        val deepRed = 0xFF991B1B.toInt()
         return when {
-            score < 40 -> blendColor(safe, yellow, score.coerceIn(0, 39) / 39f)
-            score < 60 -> blendColor(yellow, red, (score.coerceIn(40, 59) - 40) / 19f)
-            else -> blendColor(red, deepRed, (score.coerceIn(60, 100) - 60) / 40f)
+            score < 40 -> green
+            score < 75 -> yellow
+            score < 90 -> red
+            else -> blendColor(red, deepRed, (score - 90) / 10f)
         }
     }
 
