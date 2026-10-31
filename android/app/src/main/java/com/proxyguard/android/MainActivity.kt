@@ -103,7 +103,7 @@ class MainActivity : Activity() {
             setTextColor(0xFF10243A.toInt())
         }
         val subtitle = TextView(this).apply {
-            text = "فحص محلي لمؤشرات VPN وProxy"
+            text = "فحص مسبق للبروكسي وسمعة IP وكثافة المشاركة"
             textSize = 16f
             setTextColor(0xFF526579.toInt())
         }
@@ -193,7 +193,7 @@ class MainActivity : Activity() {
             setPadding(0, 24, 0, 24)
         }
         val privacy = TextView(this).apply {
-            text = "الخصوصية: يتصل فحص البروكسي بخدمة اختبار عنوان IP ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة. لا تُرسل بيانات اعتماد البروكسي إلى خدمة السمعة ولا تُحفظ في التطبيق. قد يعالج مزوّد السمعة عنوان IP وفق سياسته. تنبيه أمني: HTTP وSOCKS5 العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ استخدم HTTPS Proxy أو قناة موثوقة، ولا تدخل كلمة مرور حساسة عبر بروكسي غير مشفر. عرض DNS ليس اختبار تسريب DNS."
+            text = "الخصوصية: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io v3 لفحص السمعة وتقدير كثافة الأجهزة وسجل النشاط. لا تُرسل بيانات الاعتماد إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة، وقد يعالج المزوّد عنوان IP وفق سياسته. تنبيه أمني: HTTP وSOCKS5 العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ استخدم HTTPS Proxy أو قناة موثوقة، ولا تدخل كلمة مرور حساسة عبر بروكسي غير مشفر. عرض DNS ليس اختبار تسريب DNS."
             textSize = 13f
             setTextColor(0xFF526579.toInt())
         }
@@ -240,7 +240,7 @@ class MainActivity : Activity() {
                     proxyPasswordInput.text.clear()
                     val level = ProxyRiskPresentation.level(result.riskScore)
                     val color = riskColor(result.riskScore)
-                    indicatorTitle.text = "درجة مخاطر عنوان IP لدى ProxyCheck.io"
+                    indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io v3"
                     indicatorValue.text = "${result.riskScore}%"
                     indicatorValue.setTextColor(color)
                     indicatorLevel.text = "$level • ${if (result.proxyDetected) "صنّف المصدر العنوان كبروكسي" else if (result.vpnDetected) "صنّف المصدر العنوان كـ VPN" else "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
@@ -256,12 +256,25 @@ class MainActivity : Activity() {
                         result.provider?.let { appendLine("المزوّد: $it") }
                         result.country?.let { appendLine("رمز البلد: $it") }
                         result.asn?.let { appendLine("رقم النظام المستقل ASN: $it") }
-                        appendLine("مصدر السمعة: ProxyCheck.io")
+                        result.networkType?.let { appendLine("نوع الشبكة المسجل: $it") }
+                        appendLine()
+                        appendLine("مؤشر كثافة المشاركة (تقدير المصدر):")
+                        appendLine("تقدير الأجهزة خلف عنوان IP نفسه: ${result.estimatedDevicesAtAddress?.let { "نحو $it جهازاً" } ?: "غير متاح من المصدر"}")
+                        appendLine("تقدير الأجهزة خلف الشبكة الفرعية: ${result.estimatedDevicesInSubnet?.let { "نحو $it جهازاً" } ?: "غير متاح من المصدر"}")
+                        appendLine("هذا ليس عدداً مؤكداً للمشتركين أو للجلسات المتصلة الآن. معرفة الجلسات الدقيقة تتطلب سجلات مزوّد البروكسي.")
+                        appendLine()
+                        result.confidenceScore?.let { appendLine("ثقة تصنيف المصدر: $it/100") }
+                        result.attackHistoryCount?.let { appendLine("إجمالي أحداث الهجوم التي أظهرها سجل المصدر: $it") }
+                        result.firstSeen?.let { appendLine("أول رصد إيجابي: $it") }
+                        result.lastSeen?.let { appendLine("آخر رصد إيجابي: $it") }
+                        result.lastUpdated?.let { appendLine("آخر تحديث لبيانات المصدر: $it") }
+                        appendLine("مصدر السمعة: ProxyCheck.io v3")
                         appendLine()
                         appendLine("الأدلة:")
                         result.evidence.forEach { appendLine("• $it") }
                         appendLine()
-                        appendLine("تفسير الدرجة: هذه درجة مخاطر IP التي يقدّمها ProxyCheck.io اعتماداً على مؤشرات ونشاط رصده المزوّد، وليست احتمالاً مئوياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        appendLine("تفسير الدرجة: هذه درجة مخاطر IP التي يقدّمها ProxyCheck.io v3 وليست احتمالاً مئوياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        appendLine("تقدير الأجهزة عامل مستقل. لا نرفع درجة الخطر آلياً بسبب كثرة الأجهزة وحدها؛ فقد تكون المشاركة طبيعية في شبكات الهاتف وCGNAT. يصبح المؤشر أكثر إثارة للقلق عند اقترانه بتصنيف Proxy/VPN أو سجل إساءة استخدام حديث.")
                         appendLine("قد يختلف قرار كل موقع؛ ولا يثبت عدم تصنيف العنوان كبروكسي أو VPN أنه غير قابل للاكتشاف.")
                         appendLine("تاريخ الفحص: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date())}")
                     }
