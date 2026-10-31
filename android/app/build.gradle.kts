@@ -28,8 +28,8 @@ android {
         applicationId = "com.proxyguard.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.6.6"
+        versionCode = 17
+        versionName = "0.6.7"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
