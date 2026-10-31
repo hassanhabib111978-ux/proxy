@@ -26,6 +26,9 @@ The primary deliverable is a native Android APK that performs diagnostics on-dev
 ## Database update design
 The first version accepts an explicit CSV import. A later opt-in update mechanism may download a signed manifest and compressed feed directly from a documented dataset publisher. Verify signature, hash, size, schema, expiry and license before replacing the previous database. The update should be user initiated and must not require a ProxyGuard-operated server.
 
+## Shared-IP / device-density evidence
+ProxyCheck.io v3 can return a device estimate for the public exit IP and its subnet. ProxyGuard displays these as estimated internet-connected devices, not as a verified count of subscribers or active sessions. Exact concurrent sessions require telemetry from the proxy operator. Device density is an independent contextual signal: a high estimate may support scrutiny of an open proxy/VPN, but shared mobile and CGNAT addresses can legitimately serve many devices. Do not raise the risk score on device count alone; combine it with network type, provider classification, recent attack history, and detection confidence only under a documented and validated policy.
+
 ## Evidence and result interpretation
 The Android app separates local observations, imported CIDR classifications, and an optional external reputation lookup. For pre-use scans it may display the upstream provider's 0–100 IP risk assessment and its separate Proxy/VPN classification. This provider score is not a calibrated probability that a destination site will detect the proxy, and it must never be presented as a universal detection likelihood. An observed VPN is not inherently dangerous. An unmatched IP is not necessarily safe. Hosting/datacenter infrastructure is not proof of a proxy. Missing or failed data must remain unavailable rather than becoming zero risk.
 
