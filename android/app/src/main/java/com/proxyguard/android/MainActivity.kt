@@ -378,7 +378,7 @@ class MainActivity : Activity() {
                     val detectionScore = result.detectabilityScore
                     val detectedLabels = result.detectionSignals.orEmpty()
                     val detectionColor = detectionScore?.let { riskColor(it) }
-                    detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف البروكسي/VPN"
+                    detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف وكشف العناوين"
                     when {
                         detectionScore != null -> {
                             detectabilityValue.text = "$detectionScore/100"
@@ -585,7 +585,7 @@ class MainActivity : Activity() {
         indicatorLevel.text = detail
         indicatorLevel.setTextColor(0xFF475569.toInt())
         indicatorCard.background = indicatorBackground(0xFFEFF6FF.toInt())
-        detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف البروكسي/VPN"
+        detectabilityTitle.text = "مؤشر ظهور IP في قواعد تصنيف وكشف العناوين"
         detectabilityValue.text = "غير متاح"
         detectabilityValue.setTextColor(0xFF64748B.toInt())
         detectabilityLevel.text = "لا توجد نتيجة تصنيف صالحة من فحص البروكسي الحالي."
