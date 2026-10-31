@@ -236,7 +236,7 @@ class ProxyEndpointScannerTest {
         )
 
         assertEquals(null, result.detectabilityScore)
-        assertEquals(null, result.detectionSignals)
+        assertEquals(emptyList<String>(), result.detectionSignals)
     }
 
     @Test
