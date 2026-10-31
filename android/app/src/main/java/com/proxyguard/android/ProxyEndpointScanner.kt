@@ -32,7 +32,15 @@ internal data class ProxyScanResult(
     val provider: String?,
     val country: String?,
     val asn: String?,
-    val evidence: List<String>
+    val evidence: List<String>,
+    val estimatedDevicesAtAddress: Int? = null,
+    val estimatedDevicesInSubnet: Int? = null,
+    val confidenceScore: Int? = null,
+    val attackHistoryCount: Int? = null,
+    val firstSeen: String? = null,
+    val lastSeen: String? = null,
+    val lastUpdated: String? = null,
+    val networkType: String? = null
 )
 
 internal class ProxyScanException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -73,6 +81,10 @@ internal object ProxyEndpointScanner {
             intel.classificationType?.let { add("تصنيف عنوان IP لدى المصدر: $it") }
             intel.provider?.let { add("الجهة/المزوّد: $it") }
             intel.asn?.let { add("رقم النظام المستقل ASN: $it") }
+            intel.estimatedDevicesAtAddress?.let { add("تقدير الأجهزة خلف عنوان IP: نحو $it جهازاً") }
+            intel.estimatedDevicesInSubnet?.let { add("تقدير الأجهزة خلف الشبكة الفرعية: نحو $it جهازاً") }
+            intel.attackHistoryCount?.let { add("أحداث الهجوم المرصودة في سجل المصدر: $it") }
+            intel.confidenceScore?.let { add("ثقة تصنيف المصدر: $it/100") }
             if (!intel.proxyDetected && !intel.vpnDetected) {
                 add("لم يسجل المصدر تطابقاً إيجابياً مع Proxy أو VPN وقت الفحص؛ هذا لا يضمن عدم اكتشافه لدى كل المواقع.")
             }
@@ -86,7 +98,15 @@ internal object ProxyEndpointScanner {
             provider = intel.provider,
             country = intel.country,
             asn = intel.asn,
-            evidence = evidence
+            evidence = evidence,
+            estimatedDevicesAtAddress = intel.estimatedDevicesAtAddress,
+            estimatedDevicesInSubnet = intel.estimatedDevicesInSubnet,
+            confidenceScore = intel.confidenceScore,
+            attackHistoryCount = intel.attackHistoryCount,
+            firstSeen = intel.firstSeen,
+            lastSeen = intel.lastSeen,
+            lastUpdated = intel.lastUpdated,
+            networkType = intel.networkType
         )
     }
 
@@ -97,7 +117,15 @@ internal object ProxyEndpointScanner {
         val classificationType: String?,
         val provider: String?,
         val country: String?,
-        val asn: String?
+        val asn: String?,
+        val estimatedDevicesAtAddress: Int? = null,
+        val estimatedDevicesInSubnet: Int? = null,
+        val confidenceScore: Int? = null,
+        val attackHistoryCount: Int? = null,
+        val firstSeen: String? = null,
+        val lastSeen: String? = null,
+        val lastUpdated: String? = null,
+        val networkType: String? = null
     )
 
     /**
@@ -142,6 +170,91 @@ internal object ProxyEndpointScanner {
             country = optionalText("isocode"),
             asn = optionalText("asn")
         )
+    }
+
+
+    /**
+     * Stable ProxyCheck v3 parser. Device counts are estimates of devices behind
+     * an IP and subnet, not verified subscriber counts or live session totals.
+     */
+    internal fun parseProxyCheckV3Response(ip: String, jsonText: String): ProxyReputation {
+        val root = JSONObject(jsonText)
+        val status = root.optString("status")
+        if (status != "ok" && status != "warning") {
+            throw IllegalStateException(
+                "مصدر السمعة لم يقبل الطلب: \${root.optString("message", status)}"
+            )
+        }
+
+        val data = root.optJSONObject(ip)
+            ?: throw IllegalStateException("لم يرجع مصدر السمعة نتيجة لعنوان الخروج.")
+        val detections = data.optJSONObject("detections")
+            ?: throw IllegalStateException("استجابة v3 لا تحتوي على بيانات التصنيف.")
+        val risk = optionalNonNegativeInt(detections, "risk")
+            ?: throw IllegalStateException("مصدر السمعة لم يقدم درجة خطر رقمية؛ لن نخترع 0%.")
+        if (risk !in 0..100) {
+            throw IllegalStateException("درجة الخطر الواردة خارج النطاق المتوقع.")
+        }
+
+        val network = data.optJSONObject("network")
+        val location = data.optJSONObject("location")
+        val estimate = data.optJSONObject("device_estimate")
+        val attackHistory = data.optJSONObject("attack_history")
+        val proxy = detections.optBoolean("proxy", false)
+        val vpn = detections.optBoolean("vpn", false)
+
+        fun optionalText(parent: JSONObject?, field: String): String? {
+            if (parent == null || !parent.has(field) || parent.isNull(field)) return null
+            return parent.optString(field, "").takeUnless { it.isBlank() || it == "null" }
+        }
+
+        val attackCount = attackHistory?.let { history ->
+            var total = 0L
+            val keys = history.keys()
+            while (keys.hasNext()) {
+                optionalNonNegativeInt(history, keys.next())?.let { total += it.toLong() }
+            }
+            total.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        }
+        val confidence = optionalNonNegativeInt(detections, "confidence")?.takeIf { it in 0..100 }
+        val networkType = optionalText(network, "type")
+        val classification = when {
+            proxy -> "Proxy"
+            vpn -> "VPN"
+            detections.optBoolean("tor", false) -> "TOR"
+            detections.optBoolean("scraper", false) -> "Scraper"
+            detections.optBoolean("compromised", false) -> "Compromised"
+            else -> networkType
+        }
+
+        return ProxyReputation(
+            riskScore = risk,
+            proxyDetected = proxy,
+            vpnDetected = vpn,
+            classificationType = classification,
+            provider = optionalText(network, "provider"),
+            country = optionalText(location, "country_code"),
+            asn = optionalText(network, "asn"),
+            estimatedDevicesAtAddress = optionalNonNegativeInt(estimate, "address"),
+            estimatedDevicesInSubnet = optionalNonNegativeInt(estimate, "subnet"),
+            confidenceScore = confidence,
+            attackHistoryCount = attackCount,
+            firstSeen = optionalText(detections, "first_seen"),
+            lastSeen = optionalText(detections, "last_seen"),
+            lastUpdated = optionalText(data, "last_updated"),
+            networkType = networkType
+        )
+    }
+
+    private fun optionalNonNegativeInt(parent: JSONObject?, field: String): Int? {
+        if (parent == null || !parent.has(field) || parent.isNull(field)) return null
+        val raw = parent.opt(field)
+        val value = when (raw) {
+            is Number -> raw.toString().toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it % 1.0 == 0.0 }?.toInt()
+            else -> raw?.toString()?.toIntOrNull()
+        }
+        return value?.takeIf { it >= 0 }
     }
 
     private fun validate(endpoint: ProxyEndpoint) {
@@ -262,7 +375,7 @@ internal object ProxyEndpointScanner {
     }
 
     private fun lookupReputation(ip: String): ProxyReputation {
-        val url = URL("https://proxycheck.io/v2/$ip?risk=1&vpn=3&asn=1&port=1&seen=1&tag=0")
+        val url = URL("https://proxycheck.io/v3/$ip?tag=0")
         val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
             connectTimeout = 7_000
             readTimeout = 7_000
@@ -283,7 +396,7 @@ internal object ProxyEndpointScanner {
             if (code !in 200..299) {
                 throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code).")
             }
-            return parseProxyCheckV2Response(ip, jsonText)
+            return parseProxyCheckV3Response(ip, jsonText)
         } finally {
             connection.disconnect()
         }
