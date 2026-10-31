@@ -386,7 +386,7 @@ class MainActivity : Activity() {
                             detectabilityCard.background = indicatorBackground(
                                 blendColor(Color.WHITE, detectionColor ?: Color.LTGRAY, 0.16f)
                             )
-                            detectabilityLevel.text = if (detectionScore == 0) {
+                            detectabilityLevel.text = if (detectionScore == 0 && detectedLabels.isEmpty()) {
                                 "لم يرصد ProxyCheck تصنيفاً إيجابياً لهذا العنوان وقت الفحص. هذا لا يعني أن المواقع الأخرى لن تتعرف عليه."
                             } else {
                                 "ثقة المصدر في التصنيف: $detectionScore/100 • ${detectedLabels.joinToString("، ")}. هذه ثقة قاعدة البيانات بتصنيفها وليست احتمالاً عاماً لاكتشافه لدى كل موقع."
