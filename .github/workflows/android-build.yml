@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: proxyguard-android-build
+  group: proxyguard-android-build-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
