@@ -123,8 +123,11 @@ class ProxyEndpointScannerTest {
                   "services": ["residential_proxies", "datacenter_vpns"]
                 },
                 "detections": {
+                  "anonymous": true,
                   "proxy": false,
                   "vpn": true,
+                  "tor": false,
+                  "hosting": false,
                   "risk": 67,
                   "confidence": 91,
                   "first_seen": "2026-10-25T10:00:00Z",
@@ -151,6 +154,11 @@ class ProxyEndpointScannerTest {
         assertEquals(143, result.estimatedDevicesAtAddress)
         assertEquals(920, result.estimatedDevicesInSubnet)
         assertEquals(91, result.confidenceScore)
+        assertEquals(91, result.detectabilityScore)
+        assertEquals(true, result.anonymousDetected)
+        assertEquals(false, result.hostingDetected)
+        assertTrue(result.detectionSignals.orEmpty().contains("VPN"))
+        assertTrue(result.detectionSignals.orEmpty().contains("Anonymous / عنوان مصنّف كمجهول"))
         assertEquals(7, result.attackHistoryCount)
         assertEquals("2026-10-25T10:00:00Z", result.firstSeen)
         assertEquals("2026-10-31T08:00:00Z", result.lastSeen)
@@ -169,8 +177,11 @@ class ProxyEndpointScannerTest {
                 "location": { "country_code": "PL" },
                 "device_estimate": { "address": null, "subnet": null },
                 "detections": {
+                  "anonymous": false,
                   "proxy": false,
                   "vpn": false,
+                  "tor": false,
+                  "hosting": false,
                   "risk": 0,
                   "confidence": null
                 },
@@ -183,6 +194,9 @@ class ProxyEndpointScannerTest {
         )
 
         assertEquals(0, result.riskScore)
+        assertEquals(0, result.detectabilityScore)
+        assertEquals(false, result.anonymousDetected)
+        assertEquals(emptyList<String>(), result.detectionSignals)
         assertEquals(null, result.estimatedDevicesAtAddress)
         assertEquals(null, result.estimatedDevicesInSubnet)
         assertEquals(null, result.confidenceScore)
