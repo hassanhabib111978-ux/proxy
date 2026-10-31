@@ -653,8 +653,6 @@ class MainActivity : Activity() {
                 mainHandler.post {
                     if (activityDestroyed) return@post
                     proxyScanButton.isEnabled = true
-                    proxyUsernameInput.text.clear()
-                    proxyPasswordInput.text.clear()
                     val message = e.message ?: "حدث خطأ أثناء فحص البروكسي."
                     updateIndicator("تعذر إكمال الفحص", "لا توجد نسبة موثوقة", message)
                     output.text = message + "\n\n" + scanFailureAdvice(message) +
