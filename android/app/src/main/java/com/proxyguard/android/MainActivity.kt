@@ -22,6 +22,7 @@ import java.io.File
 import java.io.InputStream
 import java.net.Proxy
 import java.net.ProxySelector
+import java.net.InetAddress
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
