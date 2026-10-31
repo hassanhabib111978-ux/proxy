@@ -14,7 +14,7 @@ The product must preserve three separate concepts:
 
 Do not merge these concepts into one generic “risk %”.
 
-## Current engineering baseline (0.4.0 candidate)
+## Current engineering baseline (0.4.1 candidate)
 
 - Android APK with local device observations plus an opt-in, user-initiated internet-based proxy endpoint scan; no ProxyGuard-owned backend is required.
 - VPN transport and system-visible ProxySelector inspection.
@@ -84,10 +84,10 @@ For any future optional update feature:
 - Promise universal or near-zero detection error without measured evidence.
 
 
-## 0.4.0 pre-use scan design and caveats
+## 0.4.1 pre-use scan design and caveats
 
 The app now accepts a proxy host, port, and HTTP/HTTPS/SOCKS5 protocol, verifies an HTTPS tunnel through that endpoint, obtains the observed public exit IP, and queries ProxyCheck.io for an IP risk score and proxy/VPN classification. The app does not change the phone's system proxy configuration. The exit IP is disclosed to the external reputation provider; proxy credentials are not sent to that provider and are not intentionally persisted.
 
-The user-facing 0–100 percentage is a provider-supplied IP risk score presented as a practical risk/detectability indicator. It is not a probability or a promise of how a particular site will classify the connection. A score must be withheld if the proxy tunnel or reputation lookup fails. The agreed display bands are green (0–19), yellow-green (20–39), yellow (40–59), and red (60–100), with deeper red as the score rises.
+The user-facing 0–100 display is ProxyCheck.io's IP risk assessment. The provider describes it as a score based on observed activity and proxy/VPN signals. It is not a calibrated probability of detection by a destination site. The UI displays the provider's `proxy` / `type` classification separately. Missing or failed responses remain unavailable. A score must be withheld if the proxy tunnel or reputation lookup fails. The agreed display bands are green (0–19), yellow-green (20–39), yellow (40–59), and red (60–100), with deeper red as the score rises.
 
 Before public beta, review ProxyCheck.io terms, privacy and commercial-use permission, its current free quota, response stability, caching/freshness, and whether direct client-to-provider requests are acceptable. Add a second independent intelligence source, provider confidence/freshness display, a benchmark against real proxy endpoints and destination services, tests for authenticated proxies and TLS hostname verification, and an independently validated interpretation model. The score must not be marketed as a universal detection probability.
