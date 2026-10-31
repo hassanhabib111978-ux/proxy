@@ -411,11 +411,24 @@ internal object ProxyEndpointScanner {
             } else {
                 InetSocketAddress(endpoint.host, endpoint.port)
             }
-            socket.connect(address, CONNECT_TIMEOUT_MS)
-            socket.soTimeout = READ_TIMEOUT_MS
-            return socket
+            try {
+                socket.connect(address, CONNECT_TIMEOUT_MS)
+                socket.soTimeout = READ_TIMEOUT_MS
+                return socket
+            } catch (e: Exception) {
+                try { socket.close() } catch (_: Exception) {}
+                val detail = when (e) {
+                    is java.net.UnknownHostException -> "تعذر حل اسم خادم البروكسي؛ تحقق من عنوان الخادم أو DNS."
+                    is java.net.SocketTimeoutException -> "انتهت مهلة الوصول إلى خادم البروكسي؛ قد يكون الخادم أو المنفذ غير متاح."
+                    is java.net.ConnectException -> "رفض خادم البروكسي الاتصال أو تعذر الوصول إلى المنفذ."
+                    else -> "خطأ شبكة من النوع ${e.javaClass.simpleName}."
+                }
+                throw IllegalStateException("فشل الوصول TCP إلى خادم البروكسي ${endpoint.host}:${endpoint.port}. $detail التفاصيل: ${safeMessage(e)}", e)
+            }
         }
 
+        // Keep connection establishment inside the diagnostic boundary so the
+        // user sees whether TCP, SOCKS negotiation, TLS, or the IP echo failed.
         var raw = connect()
         var proxyTransport: Socket = raw
         try {
