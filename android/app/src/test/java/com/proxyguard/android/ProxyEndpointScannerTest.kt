@@ -32,7 +32,13 @@ class ProxyEndpointScannerTest {
         assertTrue(result.vpnDetected)
         assertEquals("VPN", result.classificationType)
         assertEquals("Example Network", result.provider)
-        assertEquals("US", result.country)
+        assertEquals("United States", result.country)
+        assertEquals("New York", result.region)
+        assertEquals("New York", result.city)
+        assertEquals("Example Proxy Network", result.operatorName)
+        assertEquals("medium", result.operatorPopularity)
+        assertEquals("high", result.operatorAnonymity)
+        assertEquals(listOf("residential_proxies", "datacenter_vpns"), result.operatorServices)
         assertEquals("AS64500", result.asn)
     }
 
@@ -103,8 +109,19 @@ class ProxyEndpointScannerTest {
                   "provider": "Example Network",
                   "type": "Residential"
                 },
-                "location": { "country_code": "US" },
+                "location": {
+                  "country": "United States",
+                  "country_code": "US",
+                  "region": "New York",
+                  "city": "New York"
+                },
                 "device_estimate": { "address": 143, "subnet": 920 },
+                "operator": {
+                  "name": "Example Proxy Network",
+                  "popularity": "medium",
+                  "anonymity": "high",
+                  "services": ["residential_proxies", "datacenter_vpns"]
+                },
                 "detections": {
                   "proxy": false,
                   "vpn": true,
