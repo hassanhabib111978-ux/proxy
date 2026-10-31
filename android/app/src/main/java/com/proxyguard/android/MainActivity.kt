@@ -454,7 +454,7 @@ class MainActivity : Activity() {
         extrasPanel.addView(checkIpButton)
         extrasPanel.addView(importDatabaseButton)
         val privacy = TextView(this).apply {
-            text = "الخصوصية والحدود: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io v3 لفحص السمعة. لا تُرسل بيانات الدخول إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة. HTTP وSOCKS5 العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ لا تدخل كلمة مرور حساسة عبر بروكسي غير موثوق. فحص DNS المعروض ليس اختبار تسريب DNS."
+            text = "الخصوصية والحدود: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة، مع مسار v2 احتياطي عند تعذر v3. لا تُرسل بيانات الدخول إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة. HTTP وSOCKS5 العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ لا تدخل كلمة مرور حساسة عبر بروكسي غير موثوق. فحص DNS المعروض ليس اختبار تسريب DNS."
             textSize = 11f
             setTextColor(0xFF526579.toInt())
             setPadding(0, dp(8), 0, dp(4))
@@ -565,7 +565,7 @@ class MainActivity : Activity() {
                     proxyScanButton.isEnabled = true
                     val level = ProxyRiskPresentation.level(result.riskScore)
                     val color = riskColor(result.riskScore)
-                    indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io v3"
+                    indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io ${result.sourceVersion}"
                     indicatorValue.text = "${result.riskScore}%"
                     indicatorValue.setTextColor(color)
                     indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
@@ -636,12 +636,12 @@ class MainActivity : Activity() {
                         result.firstSeen?.let { appendLine("أول رصد إيجابي: $it") }
                         result.lastSeen?.let { appendLine("آخر رصد إيجابي: $it") }
                         result.lastUpdated?.let { appendLine("آخر تحديث لبيانات المصدر: $it") }
-                        appendLine("مصدر السمعة: ProxyCheck.io v3")
+                        appendLine("مصدر السمعة: ProxyCheck.io ${result.sourceVersion}")
                         appendLine()
                         appendLine("الأدلة:")
                         result.evidence.forEach { appendLine("• $it") }
                         appendLine()
-                        appendLine("تفسير درجة المخاطر: هذه درجة ProxyCheck.io v3 الخاصة بسمعة/مخاطر عنوان IP، وليست احتمالاً إحصائياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        appendLine("تفسير درجة المخاطر: هذه درجة ProxyCheck.io ${result.sourceVersion} الخاصة بسمعة/مخاطر عنوان IP، وليست احتمالاً إحصائياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
                         appendLine("ثقة التصنيف 0–100 تعني مدى ثقة هذا المصدر في تصنيف إيجابي محدد؛ وهي ليست نسبة احتمال الاكتشاف على جميع المواقع.")
                         appendLine("لا يحسب هذا الإصدار بعد درجة موحدة معايرة لجميع إشارات الشبكة والمتصفح والجلسة؛ لذلك لا ينبغي تفسير أي من الرقمين كاحتمال شامل للاكتشاف.")
                         appendLine("تقدير الأجهزة عامل مستقل. لا نرفع درجة الخطر آلياً بسبب كثرة الأجهزة وحدها؛ فقد تكون المشاركة طبيعية في شبكات الهاتف وCGNAT. يصبح المؤشر أكثر إثارة للقلق عند اقترانه بتصنيف Proxy/VPN أو سجل إساءة استخدام حديث.")
