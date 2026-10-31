@@ -46,7 +46,14 @@ internal data class ProxyScanResult(
     val operatorName: String? = null,
     val operatorPopularity: String? = null,
     val operatorAnonymity: String? = null,
-    val operatorServices: List<String>? = null
+    val operatorServices: List<String>? = null,
+    val anonymousDetected: Boolean? = null,
+    val hostingDetected: Boolean? = null,
+    val torDetected: Boolean? = null,
+    val scraperDetected: Boolean? = null,
+    val compromisedDetected: Boolean? = null,
+    val detectabilityScore: Int? = null,
+    val detectionSignals: List<String>? = null
 )
 
 internal class ProxyScanException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -118,7 +125,14 @@ internal object ProxyEndpointScanner {
             operatorName = intel.operatorName,
             operatorPopularity = intel.operatorPopularity,
             operatorAnonymity = intel.operatorAnonymity,
-            operatorServices = intel.operatorServices
+            operatorServices = intel.operatorServices,
+            anonymousDetected = intel.anonymousDetected,
+            hostingDetected = intel.hostingDetected,
+            torDetected = intel.torDetected,
+            scraperDetected = intel.scraperDetected,
+            compromisedDetected = intel.compromisedDetected,
+            detectabilityScore = intel.detectabilityScore,
+            detectionSignals = intel.detectionSignals
         )
     }
 
@@ -143,7 +157,14 @@ internal object ProxyEndpointScanner {
         val operatorName: String? = null,
         val operatorPopularity: String? = null,
         val operatorAnonymity: String? = null,
-        val operatorServices: List<String>? = null
+        val operatorServices: List<String>? = null,
+        val anonymousDetected: Boolean? = null,
+        val hostingDetected: Boolean? = null,
+        val torDetected: Boolean? = null,
+        val scraperDetected: Boolean? = null,
+        val compromisedDetected: Boolean? = null,
+        val detectabilityScore: Int? = null,
+        val detectionSignals: List<String>? = null
     )
 
     /**
@@ -219,8 +240,18 @@ internal object ProxyEndpointScanner {
         val estimate = data.optJSONObject("device_estimate")
         val attackHistory = data.optJSONObject("attack_history")
         val operator = data.optJSONObject("operator")
-        val proxy = detections.optBoolean("proxy", false)
-        val vpn = detections.optBoolean("vpn", false)
+        fun optionalBoolean(parent: JSONObject?, field: String): Boolean? {
+            if (parent == null || !parent.has(field) || parent.isNull(field)) return null
+            return parent.optBoolean(field)
+        }
+
+        val proxy = optionalBoolean(detections, "proxy") == true
+        val vpn = optionalBoolean(detections, "vpn") == true
+        val tor = optionalBoolean(detections, "tor")
+        val hosting = optionalBoolean(detections, "hosting")
+        val scraper = optionalBoolean(detections, "scraper")
+        val compromised = optionalBoolean(detections, "compromised")
+        val anonymous = optionalBoolean(detections, "anonymous")
 
         fun optionalText(parent: JSONObject?, field: String): String? {
             if (parent == null || !parent.has(field) || parent.isNull(field)) return null
@@ -237,6 +268,26 @@ internal object ProxyEndpointScanner {
         }
         val confidence = optionalNonNegativeInt(detections, "confidence")?.takeIf { it in 0..100 }
         val networkType = optionalText(network, "type")
+        val detectionSignals = buildList {
+            if (anonymous == true) add("Anonymous / عنوان مصنّف كمجهول")
+            if (proxy) add("Proxy")
+            if (vpn) add("VPN")
+            if (tor == true) add("TOR")
+            if (hosting == true || networkType.equals("Hosting", ignoreCase = true)) add("Hosting / مركز بيانات")
+            if (scraper == true) add("Scraper")
+            if (compromised == true) add("Compromised")
+        }.distinct()
+        val hasDetectionFields = listOf("anonymous", "proxy", "vpn", "tor", "hosting", "scraper", "compromised")
+            .any { detections.has(it) && !detections.isNull(it) }
+        val hasPositiveDetection = anonymous == true || proxy || vpn || tor == true ||
+            hosting == true || scraper == true || compromised == true
+        // This is the provider's confidence in its positive classification, not a
+        // calibrated probability that any particular website will detect the IP.
+        val detectabilityScore = when {
+            hasPositiveDetection -> confidence
+            hasDetectionFields -> 0
+            else -> null
+        }
         val operatorServices = operator?.optJSONArray("services")?.let { services ->
             (0 until services.length()).mapNotNull { index ->
                 services.optString(index).takeIf { it.isNotBlank() && it != "null" }
@@ -245,9 +296,11 @@ internal object ProxyEndpointScanner {
         val classification = when {
             proxy -> "Proxy"
             vpn -> "VPN"
-            detections.optBoolean("tor", false) -> "TOR"
-            detections.optBoolean("scraper", false) -> "Scraper"
-            detections.optBoolean("compromised", false) -> "Compromised"
+            tor == true -> "TOR"
+            hosting == true -> "Hosting"
+            scraper == true -> "Scraper"
+            compromised == true -> "Compromised"
+            anonymous == true -> "Anonymous"
             else -> null
         }
 
@@ -274,7 +327,14 @@ internal object ProxyEndpointScanner {
             operatorName = optionalText(operator, "name"),
             operatorPopularity = optionalText(operator, "popularity"),
             operatorAnonymity = optionalText(operator, "anonymity"),
-            operatorServices = operatorServices
+            operatorServices = operatorServices,
+            anonymousDetected = anonymous,
+            hostingDetected = hosting,
+            torDetected = tor,
+            scraperDetected = scraper,
+            compromisedDetected = compromised,
+            detectabilityScore = detectabilityScore,
+            detectionSignals = detectionSignals
         )
     }
 
