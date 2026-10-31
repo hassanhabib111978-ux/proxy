@@ -40,7 +40,13 @@ internal data class ProxyScanResult(
     val firstSeen: String? = null,
     val lastSeen: String? = null,
     val lastUpdated: String? = null,
-    val networkType: String? = null
+    val networkType: String? = null,
+    val city: String? = null,
+    val region: String? = null,
+    val operatorName: String? = null,
+    val operatorPopularity: String? = null,
+    val operatorAnonymity: String? = null,
+    val operatorServices: List<String>? = null
 )
 
 internal class ProxyScanException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -106,7 +112,13 @@ internal object ProxyEndpointScanner {
             firstSeen = intel.firstSeen,
             lastSeen = intel.lastSeen,
             lastUpdated = intel.lastUpdated,
-            networkType = intel.networkType
+            networkType = intel.networkType,
+            city = intel.city,
+            region = intel.region,
+            operatorName = intel.operatorName,
+            operatorPopularity = intel.operatorPopularity,
+            operatorAnonymity = intel.operatorAnonymity,
+            operatorServices = intel.operatorServices
         )
     }
 
@@ -125,7 +137,13 @@ internal object ProxyEndpointScanner {
         val firstSeen: String? = null,
         val lastSeen: String? = null,
         val lastUpdated: String? = null,
-        val networkType: String? = null
+        val networkType: String? = null,
+        val city: String? = null,
+        val region: String? = null,
+        val operatorName: String? = null,
+        val operatorPopularity: String? = null,
+        val operatorAnonymity: String? = null,
+        val operatorServices: List<String>? = null
     )
 
     /**
@@ -200,6 +218,7 @@ internal object ProxyEndpointScanner {
         val location = data.optJSONObject("location")
         val estimate = data.optJSONObject("device_estimate")
         val attackHistory = data.optJSONObject("attack_history")
+        val operator = data.optJSONObject("operator")
         val proxy = detections.optBoolean("proxy", false)
         val vpn = detections.optBoolean("vpn", false)
 
@@ -218,6 +237,11 @@ internal object ProxyEndpointScanner {
         }
         val confidence = optionalNonNegativeInt(detections, "confidence")?.takeIf { it in 0..100 }
         val networkType = optionalText(network, "type")
+        val operatorServices = operator?.optJSONArray("services")?.let { services ->
+            (0 until services.length()).mapNotNull { index ->
+                services.optString(index).takeIf { it.isNotBlank() && it != "null" }
+            }.takeIf { it.isNotEmpty() }
+        }
         val classification = when {
             proxy -> "Proxy"
             vpn -> "VPN"
@@ -244,7 +268,13 @@ internal object ProxyEndpointScanner {
             firstSeen = optionalText(detections, "first_seen"),
             lastSeen = optionalText(detections, "last_seen"),
             lastUpdated = optionalText(data, "last_updated"),
-            networkType = networkType
+            networkType = networkType,
+            city = optionalText(location, "city"),
+            region = optionalText(location, "region"),
+            operatorName = optionalText(operator, "name"),
+            operatorPopularity = optionalText(operator, "popularity"),
+            operatorAnonymity = optionalText(operator, "anonymity"),
+            operatorServices = operatorServices
         )
     }
 
