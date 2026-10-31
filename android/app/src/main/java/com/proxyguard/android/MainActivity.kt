@@ -20,7 +20,6 @@ import android.widget.TextView
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
-import java.net.InetAddress
 import java.net.Proxy
 import java.net.ProxySelector
 import java.net.URI
@@ -311,7 +310,7 @@ class MainActivity : Activity() {
             if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true) add("Ethernet")
             if (vpn) add("VPN")
         }
-        val dns = network?.let { cm.getLinkProperties(it)?.dnsServers?.map(InetAddress::getHostAddress) } ?: emptyList()
+        val dns = network?.let { cm.getLinkProperties(it)?.dnsServers?.mapNotNull { address -> address.hostAddress } } ?: emptyList()
         val proxy = try {
             ProxySelector.getDefault()?.select(URI("https://example.invalid"))
                 ?.firstOrNull { it.type() == Proxy.Type.HTTP || it.type() == Proxy.Type.SOCKS }
