@@ -182,7 +182,7 @@ internal object ProxyEndpointScanner {
         val status = root.optString("status")
         if (status != "ok" && status != "warning") {
             throw IllegalStateException(
-                "مصدر السمعة لم يقبل الطلب: \${root.optString("message", status)}"
+                "مصدر السمعة لم يقبل الطلب: ${root.optString("message", status)}"
             )
         }
 
