@@ -493,7 +493,14 @@ internal object ProxyEndpointScanner {
             }
             val jsonText = stream.use { readLimited(it, MAX_RESPONSE_BYTES) }
             if (code !in 200..299) {
-                throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code).")
+                val providerMessage = runCatching {
+                    JSONObject(jsonText).optString("message").takeIf { it.isNotBlank() && it != "null" }
+                }.getOrNull()
+                val detail = (providerMessage ?: jsonText.trim())
+                    .replace(Regex("\\s+"), " ")
+                    .take(220)
+                val suffix = if (detail.isBlank()) "" else ": $detail"
+                throw IllegalStateException("مصدر السمعة غير متاح حالياً (HTTP $code)$suffix")
             }
             return parseProxyCheckV3Response(ip, jsonText)
         } finally {
