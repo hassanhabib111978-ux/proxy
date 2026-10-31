@@ -559,7 +559,7 @@ class MainActivity : Activity() {
         output.text = "يُجرى الآن اختبار البروكسي. لن تتغير إعدادات اتصال الهاتف."
         scanExecutor.execute {
             try {
-                val result = ProxyEndpointScanner.scan(endpoint)
+                val result = ProxyEndpointScanner.scan(this@MainActivity, endpoint)
                 mainHandler.post {
                     if (activityDestroyed) return@post
                     proxyScanButton.isEnabled = true
