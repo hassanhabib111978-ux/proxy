@@ -96,7 +96,7 @@ class ProxyIpWatchService : Service() {
     private fun pollExitIp(endpoint: ProxyEndpoint) {
         if (stopping) return
         try {
-            val observedIp = ProxyEndpointScanner.currentExitIp(endpoint)
+            val observedIp = ProxyEndpointScanner.currentExitIp(this@ProxyIpWatchService, endpoint)
             val previousIp = preferences.getString(KEY_LAST_IP, null)
             val comparison = compareExitIp(previousIp, observedIp)
             val now = System.currentTimeMillis()
