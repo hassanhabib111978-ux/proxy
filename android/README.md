@@ -1,8 +1,8 @@
-# ProxyGuard Android 0.4.1 — pre-use proxy scanner
+# ProxyGuard Android 0.5.0 — pre-use proxy scanner
 
 ## Release status
 
-Version **0.4.1** adds a user-initiated proxy endpoint test and reputation lookup. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
+Version **0.5.0** adds ProxyCheck v3 intelligence, including device estimates behind the exit IP and subnet, detection confidence, and attack-history counts. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
 
 ## Current behavior
 
@@ -57,7 +57,7 @@ Android's platform APIs do not expose every app's network path to an ordinary ap
 
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.4.1-debug`. The runner uses its normal temporary Android debug signing key; artifacts from separate CI runs are not guaranteed to be update-compatible. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
+The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.5.0-debug`. The runner uses its normal temporary Android debug signing key; artifacts from separate CI runs are not guaranteed to be update-compatible. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
 
 ## Privacy
 
@@ -75,11 +75,11 @@ The app requests `ACCESS_NETWORK_STATE` and `INTERNET`. No network scan runs unt
 No “near-zero error” or universal detection claim is acceptable until measured against representative, independently labeled test data. Even then, publish the measured rates and test conditions rather than promising zero errors.
 
 
-## Pre-use proxy scan (0.4.1)
+## Pre-use proxy scan (0.5.0)
 
-The user can enter a proxy host, port, protocol (HTTP, HTTPS, SOCKS5), and optional username/password. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication). It then requests the public exit IP through the tested tunnel and queries ProxyCheck.io for its IP risk score and proxy/VPN classification.
+The user can enter a proxy host, port, protocol (HTTP, HTTPS, SOCKS5), and optional username/password. The scanner tests the endpoint without changing Android's system proxy configuration. It supports HTTP CONNECT, TLS-to-HTTPS-proxy followed by CONNECT, and SOCKS5 (including username/password authentication). It then requests the public exit IP through the tested tunnel and queries the stable ProxyCheck.io v3 API for IP risk, proxy/VPN classification, network type, estimated devices behind the IP and subnet, detection confidence, and attack-history counts.
 
-The displayed value is the upstream provider's **IP risk score**. ProxyCheck.io documents this score as an assessment based on activity it has observed from the IP and whether it appears to be running proxy/VPN infrastructure. It is **not** a calibrated probability that a particular website will detect or block the proxy. Proxy/VPN classification (`proxy`, `type`) is displayed separately from the risk score. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
+The displayed value is the upstream provider's **IP risk score**. Device estimates are shown separately: they are not a verified count of subscribers or active proxy sessions, and high sharing is not automatically treated as abuse. ProxyCheck.io documents this score as an assessment based on activity it has observed from the IP and whether it appears to be running proxy/VPN infrastructure. It is **not** a calibrated probability that a particular website will detect or block the proxy. Proxy/VPN classification (`proxy`, `type`) is displayed separately from the risk score. Websites use different detection systems and can reach different decisions. If tunnel verification or reputation lookup fails, the app must not display a fabricated 0% score.
 
 Color bands: 0–19 green, 20–39 yellow-green, 40–59 yellow, and 60–100 red with progressively darker red at higher scores. The 60% threshold is the requested visual warning threshold; it is not a universal blocking threshold.
 
