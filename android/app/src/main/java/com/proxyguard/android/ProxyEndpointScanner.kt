@@ -224,7 +224,7 @@ internal object ProxyEndpointScanner {
             detections.optBoolean("tor", false) -> "TOR"
             detections.optBoolean("scraper", false) -> "Scraper"
             detections.optBoolean("compromised", false) -> "Compromised"
-            else -> networkType
+            else -> null
         }
 
         return ProxyReputation(
@@ -375,7 +375,7 @@ internal object ProxyEndpointScanner {
     }
 
     private fun lookupReputation(ip: String): ProxyReputation {
-        val url = URL("https://proxycheck.io/v3/$ip?tag=0")
+        val url = URL("https://proxycheck.io/v3/$ip?days=7&tag=0")
         val connection = (url.openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
             connectTimeout = 7_000
             readTimeout = 7_000
