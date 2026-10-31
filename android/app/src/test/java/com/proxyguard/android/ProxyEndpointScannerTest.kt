@@ -219,4 +219,49 @@ class ProxyEndpointScannerTest {
         )
     }
 
+
+    @Test
+    fun reportsMissingDetectionFlagsAsUnavailableRatherThanZero() {
+        val result = ProxyEndpointScanner.parseProxyCheckV3Response(
+            ip,
+            """
+            {
+              "status": "ok",
+              "$ip": {
+                "network": { "type": "Business" },
+                "detections": { "risk": 12 }
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(null, result.detectabilityScore)
+        assertEquals(null, result.detectionSignals)
+    }
+
+    @Test
+    fun hostingNetworkTypeIsShownAsAClassificationSignal() {
+        val result = ProxyEndpointScanner.parseProxyCheckV3Response(
+            ip,
+            """
+            {
+              "status": "ok",
+              "$ip": {
+                "network": { "type": "Hosting" },
+                "detections": {
+                  "anonymous": false,
+                  "proxy": false,
+                  "vpn": false,
+                  "risk": 33,
+                  "confidence": 84
+                }
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(84, result.detectabilityScore)
+        assertTrue(result.detectionSignals.orEmpty().contains("Hosting / مركز بيانات"))
+    }
+
 }
