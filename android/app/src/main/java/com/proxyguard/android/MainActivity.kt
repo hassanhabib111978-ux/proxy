@@ -61,8 +61,8 @@ class MainActivity : Activity() {
     private lateinit var proxyHostInput: EditText
     private lateinit var proxyPortInput: EditText
     private lateinit var btnHttp: Button
-    private lateinit var btnSocks5: Button
-    private var selectedProxyType: String = "SOCKS5"
+    private lateinit var btnSocks: Button
+    private var selectedProxyType: String = "SOCKS"
     private lateinit var proxyUsernameInput: EditText
     private lateinit var proxyPasswordInput: EditText
     private lateinit var proxyScanButton: Button
@@ -181,26 +181,26 @@ class MainActivity : Activity() {
             setSingleLine(true)
             isSaveEnabled = false
         }
-        // Quick protocol selector: SOCKS5 is selected by default.
+        // Quick protocol selector: generic SOCKS auto-negotiation is selected by default.
         btnHttp = Button(this).apply {
             text = "HTTP"
             isAllCaps = false
             minHeight = dp(46)
             setOnClickListener {
                 selectedProxyType = "HTTP"
-                updateButtonStyles(btnHttp, btnSocks5)
+                updateButtonStyles(btnHttp, btnSocks)
             }
         }
-        btnSocks5 = Button(this).apply {
-            text = "SOCKS5"
+        btnSocks = Button(this).apply {
+            text = "SOCKS"
             isAllCaps = false
             minHeight = dp(46)
             setOnClickListener {
-                selectedProxyType = "SOCKS5"
-                updateButtonStyles(btnSocks5, btnHttp)
+                selectedProxyType = "SOCKS"
+                updateButtonStyles(btnSocks, btnHttp)
             }
         }
-        updateButtonStyles(btnSocks5, btnHttp)
+        updateButtonStyles(btnSocks, btnHttp)
         proxyUsernameInput = EditText(this).apply {
             hint = "اسم المستخدم / Login"
             textSize = 14f
@@ -324,7 +324,7 @@ class MainActivity : Activity() {
         val proxyTypeButtons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
-            addView(btnSocks5, LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(btnSocks, LinearLayout.LayoutParams(0, dp(48), 1f))
             addView(btnHttp, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 marginStart = dp(6)
             })
@@ -485,7 +485,7 @@ class MainActivity : Activity() {
         extrasPanel.addView(checkIpButton)
         extrasPanel.addView(importDatabaseButton)
         val privacy = TextView(this).apply {
-            text = "الخصوصية والحدود: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة، مع مسار v2 احتياطي عند تعذر v3. لا تُرسل بيانات الدخول إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة. HTTP وSOCKS5 وSOCKS4a العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ لا تدخل كلمة مرور حساسة عبر بروكسي غير موثوق. فحص DNS المعروض ليس اختبار تسريب DNS."
+            text = "الخصوصية والحدود: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة، مع مسار v2 احتياطي عند تعذر v3. لا تُرسل بيانات الدخول إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة. HTTP وSOCKS العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ لا تدخل كلمة مرور حساسة عبر بروكسي غير موثوق. فحص DNS المعروض ليس اختبار تسريب DNS."
             textSize = 11f
             setTextColor(0xFF526579.toInt())
             setPadding(0, dp(8), 0, dp(4))
@@ -556,7 +556,7 @@ class MainActivity : Activity() {
     }
 
     private fun selectedProxyProtocol(): ProxyProtocol =
-        if (selectedProxyType == "HTTP") ProxyProtocol.HTTP else ProxyProtocol.SOCKS5
+        if (selectedProxyType == "HTTP") ProxyProtocol.HTTP else ProxyProtocol.SOCKS_AUTO
 
     private fun updateButtonStyles(activeButton: Button, inactiveButton: Button) {
         activeButton.background = GradientDrawable().apply {
@@ -779,7 +779,7 @@ class MainActivity : Activity() {
         message.contains("توثيق", ignoreCase = true) || message.contains("authentication", ignoreCase = true) ->
             "تحقق من اسم المستخدم وكلمة المرور وصيغة اسم المستخدم الخاصة بالجلسة أو الدولة."
         message.contains("رفض البروكسي", ignoreCase = true) || message.contains("CONNECT", ignoreCase = true) ->
-            "تحقق من نوع البروكسي والمنفذ؛ قد يكون النوع SOCKS5 بينما اخترت HTTP أو العكس، أو قد لا يسمح الخادم بنفق HTTPS."
+            "تحقق من نوع البروكسي والمنفذ؛ قد يكون الخادم من نوع SOCKS بينما اخترت HTTP أو العكس، أو قد لا يسمح الخادم بنفق HTTPS."
         message.contains("timeout", ignoreCase = true) || message.contains("timed out", ignoreCase = true) ->
             "انتهت مهلة الاتصال. تحقق من أن البروكسي نشط وأن عنوان الخادم والمنفذ صحيحان، ثم جرب شبكة أخرى."
         message.contains("UnknownHost", ignoreCase = true) || message.contains("resolve", ignoreCase = true) ->
