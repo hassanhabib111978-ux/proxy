@@ -81,13 +81,21 @@ internal object ProxyEndpointScanner {
         validate(endpoint)
         var directNetwork = selectUnderlyingNetwork(context)
         var usedDefaultAndroidRoute = false
+        val vpnActive = hasActiveVpn(context)
         val exitIp = try {
             fetchExitIp(endpoint, directNetwork)
         } catch (firstError: Exception) {
             if (directNetwork != null && isNetworkBindingPermissionError(firstError)) {
-                // Android/OEM VPN policy can deny binding an app socket to a
-                // non-VPN Network while a third-party VPN is active. Retry using
-                // the normal app route; Android may route it through that VPN.
+                if (vpnActive) {
+                    // Do not silently retry through an active third-party VPN:
+                    // that can route the proxy connection back into the VPN and
+                    // create a tunnel loop or test a different egress path.
+                    throw ProxyScanException(
+                        "رفض Android الاتصال المباشر بالشبكة الفعلية (EPERM) مع وجود VPN نشط. لا يستطيع ProxyGuard تجاوز VPN تابع لتطبيق آخر. افتح Tun2TAP واستثنِ ProxyGuard من قائمة التطبيقات الموجّهة عبر النفق (Bypass/Excluded apps)، أو أوقف Tun2TAP مؤقتاً ثم أعد الفحص.",
+                        firstError
+                    )
+                }
+                // With no active VPN, retry through Android's ordinary route.
                 directNetwork = null
                 usedDefaultAndroidRoute = true
                 try {
@@ -95,7 +103,7 @@ internal object ProxyEndpointScanner {
                 } catch (fallbackError: Exception) {
                     fallbackError.addSuppressed(firstError)
                     throw ProxyScanException(
-                        "رفض Android ربط الاتصال بالشبكة الفعلية (EPERM)، ثم فشل الاختبار عبر مسار Android الافتراضي أيضاً: ${safeMessage(fallbackError)}. تحقق من إعداد Tun2TAP أو استثناء التطبيق منه.",
+                        "رفض Android ربط الاتصال بالشبكة الفعلية (EPERM)، وفشل المسار الافتراضي أيضاً: ${safeMessage(fallbackError)}.",
                         fallbackError
                     )
                 }
@@ -427,6 +435,14 @@ internal object ProxyEndpointScanner {
         return false
     }
 
+    private fun hasActiveVpn(context: Context): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        return manager.allNetworks.any { network ->
+            manager.getNetworkCapabilities(network)
+                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+        }
+    }
+
     private fun selectUnderlyingNetwork(context: Context): Network? {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val candidates = manager.allNetworks.mapNotNull { network ->
@@ -608,27 +624,57 @@ internal object ProxyEndpointScanner {
 
     private const val authConnection = "Proxy-Connection"
 
+    internal fun socks5NegotiationFailure(version: Int, method: Int, hasCredentials: Boolean): String {
+        if (version != 5) {
+            return when (version) {
+                0x48 -> "المنفذ يبدو أنه خادم HTTP وليس SOCKS5. اختر HTTP إذا كان هذا هو نوع البروكسي."
+                0x04 -> "استجاب الخادم كبروتوكول SOCKS4، بينما الاختيار الحالي SOCKS5. تحقق من نوع البروكسي."
+                0x16 -> "الخادم بدأ تفاوض TLS؛ قد يكون HTTPS Proxy وليس SOCKS5."
+                -1 -> "أغلق خادم البروكسي الاتصال قبل إرسال رد تفاوض SOCKS5."
+                else -> "رد خادم البروكسي ببروتوكول غير متوقع (0x${version.toString(16).uppercase().padStart(2, '0')})؛ تحقق من نوع البروكسي والمنفذ."
+            }
+        }
+        return when (method) {
+            -1 -> "أغلق خادم SOCKS5 الاتصال قبل إكمال تفاوض المصادقة."
+            0xFF -> "رفض خادم SOCKS5 طرق المصادقة المتاحة. تحقق من بيانات الدخول أو إعدادات المصادقة لدى المزوّد."
+            0x02 -> if (hasCredentials) {
+                "خادم SOCKS5 طلب مصادقة باسم مستخدم وكلمة مرور."
+            } else {
+                "خادم SOCKS5 يتطلب اسم مستخدم وكلمة مرور."
+            }
+            0x00 -> "فشل تفاوض SOCKS5 لسبب غير متوقع."
+            else -> "طريقة مصادقة SOCKS5 غير مدعومة من التطبيق (0x${method.toString(16).uppercase().padStart(2, '0')})."
+        }
+    }
+
     private fun establishSocksTunnel(socket: Socket, endpoint: ProxyEndpoint, echoHost: String) {
         val out = socket.getOutputStream()
         val input = BufferedInputStream(socket.getInputStream())
         val hasCredentials = !endpoint.username.isNullOrEmpty()
-        out.write(if (hasCredentials) byteArrayOf(0x05, 0x02, 0x00, 0x02) else byteArrayOf(0x05, 0x01, 0x00))
+        // Advertise both standard methods so an auth-only server can tell us
+        // explicitly that credentials are required instead of returning 0xFF.
+        out.write(byteArrayOf(0x05, 0x02, 0x00, 0x02))
         out.flush()
         val version = input.read()
         val method = input.read()
-        if (version != 5 || method == 0xFF || method < 0) throw IllegalStateException("فشل تفاوض SOCKS5.")
+        if (version != 5 || method < 0 || method == 0xFF) {
+            throw IllegalStateException(socks5NegotiationFailure(version, method, hasCredentials))
+        }
         if (method == 0x02) {
-            val user = endpoint.username?.toByteArray(StandardCharsets.UTF_8) ?: byteArrayOf()
-            val pass = endpoint.password?.toByteArray(StandardCharsets.UTF_8) ?: byteArrayOf()
+            if (!hasCredentials) {
+                throw IllegalStateException("خادم SOCKS5 يتطلب اسم مستخدم وكلمة مرور. أدخل بيانات المصادقة التي زوّدك بها مشغّل البروكسي.")
+            }
+            val user = endpoint.username!!.toByteArray(StandardCharsets.UTF_8)
+            val pass = endpoint.password!!.toByteArray(StandardCharsets.UTF_8)
             require(user.size <= 255 && pass.size <= 255) { "بيانات SOCKS5 أطول من المسموح." }
             out.write(byteArrayOf(0x01, user.size.toByte()))
             out.write(user)
             out.write(pass.size)
             out.write(pass)
             out.flush()
-            if (input.read() != 0x01 || input.read() != 0x00) throw IllegalStateException("فشل توثيق SOCKS5.")
+            if (input.read() != 0x01 || input.read() != 0x00) throw IllegalStateException("رفض خادم SOCKS5 بيانات اسم المستخدم أو كلمة المرور.")
         } else if (method != 0x00) {
-            throw IllegalStateException("طريقة توثيق SOCKS5 غير مدعومة.")
+            throw IllegalStateException(socks5NegotiationFailure(version, method, hasCredentials))
         }
 
         val host = echoHost.toByteArray(StandardCharsets.US_ASCII)
