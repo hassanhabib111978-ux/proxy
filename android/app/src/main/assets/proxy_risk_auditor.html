@@ -21,6 +21,9 @@
     button{border:0;border-radius:11px;padding:13px 17px;background:var(--cyan);color:#07111d;font-weight:bold;font-size:14px;cursor:pointer}
     button:disabled{opacity:.55;cursor:wait}
     .formrow{display:grid;grid-template-columns:1fr auto;gap:10px}
+    .type-select{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
+    .type-button{background:#1f2937;color:#cbd5e1;border:1px solid #475569}
+    .type-button.active{background:#0e7490;color:#ecfeff;border:1px solid #22d3ee;box-shadow:0 0 0 2px rgba(34,211,238,.12)}
     .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
     .presets span{font-size:11px;color:#9ca3af}
     .preset{padding:7px 10px;background:#1f2937;color:#a5f3fc;font-size:11px}
@@ -54,10 +57,15 @@
   </header>
 
   <section class="card">
-    <label for="proxyInput">أدخل بيانات البروكسي</label>
+    <label>اختر نوع البروكسي</label>
+    <div class="type-select" role="group" aria-label="نوع البروكسي">
+      <button type="button" id="btn_socks5" class="type-button active" onclick="setProxyType('SOCKS5')">SOCKS5</button>
+      <button type="button" id="btn_http" class="type-button" onclick="setProxyType('HTTP')">HTTP</button>
+    </div>
+    <label for="proxyInput">أدخل عنوان البروكسي وبياناته</label>
     <div class="formrow">
       <input id="proxyInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
-        placeholder="socks5://user:pass@host:port أو http://host:port">
+        placeholder="host:port أو user:pass@host:port">
       <button id="scanBtn" onclick="runAudit()">بدء الفحص الأمني</button>
     </div>
     <div class="presets">
@@ -66,7 +74,7 @@
       <button class="preset" onclick="fillPreset('http://proxy.example:8080')">HTTP</button>
       <button class="preset" onclick="fillPreset('84.201.5.23:8950')">Host:Port</button>
     </div>
-    <p class="hint">لا تضع بيانات بروكسي حقيقية في الأمثلة. الصيغة العارية host:port تُعامل كـ SOCKS مع اكتشاف تلقائي. يمكن تضمين بيانات الدخول بصيغة user:pass@ داخل الرابط؛ لا تُحفظ من هذه الواجهة.</p>
+    <p class="hint">يُستخدم SOCKS5 افتراضياً. عند إدخال host:port دون تحديد البروتوكول داخل العنوان، سيستخدم التطبيق النوع المختار أعلاه. ويمكنك إدخال البروتوكول صراحةً مثل http:// أو socks5://. بيانات الدخول لا تُحفظ من هذه الواجهة.</p>
   </section>
 
   <section id="errorSection" class="error hidden" role="alert"></section>
@@ -102,16 +110,38 @@
 
 <script>
   const byId = id => document.getElementById(id);
-  function fillPreset(value){ byId('proxyInput').value=value; }
+  // Matches the Android selector: SOCKS5 is the initial/default choice.
+  var selectedProxyType = "SOCKS5";
+
+  function updateButtonStyles(activeButton, inactiveButton){
+    activeButton.classList.add('active');
+    inactiveButton.classList.remove('active');
+    activeButton.setAttribute('aria-pressed','true');
+    inactiveButton.setAttribute('aria-pressed','false');
+  }
+
+  function setProxyType(type){
+    selectedProxyType = type === 'HTTP' ? 'HTTP' : 'SOCKS5';
+    if(selectedProxyType === 'HTTP') updateButtonStyles(byId('btn_http'),byId('btn_socks5'));
+    else updateButtonStyles(byId('btn_socks5'),byId('btn_http'));
+  }
+
+  function fillPreset(value){
+    if(value.toLowerCase().startsWith('http://')) setProxyType('HTTP');
+    if(value.toLowerCase().startsWith('socks5://')) setProxyType('SOCKS5');
+    byId('proxyInput').value=value;
+  }
   function setStatus(value){ byId('systemStatus').textContent=value; }
 
   function runAudit(){
-    const input=byId('proxyInput').value.trim();
-    if(!input){ byId('errorSection').textContent='أدخل بيانات البروكسي أولاً.'; byId('errorSection').classList.remove('hidden'); return; }
+    const rawInput=byId('proxyInput').value.trim();
+    if(!rawInput){ byId('errorSection').textContent='أدخل بيانات البروكسي أولاً.'; byId('errorSection').classList.remove('hidden'); return; }
     if(!window.AndroidProxy || typeof window.AndroidProxy.scanProxy !== 'function'){
       byId('errorSection').textContent='محرك Android غير متاح. افتح هذه الصفحة من داخل تطبيق ProxyGuard.';
       byId('errorSection').classList.remove('hidden'); return;
     }
+    const hasExplicitProtocol=/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(rawInput);
+    const input=hasExplicitProtocol ? rawInput : selectedProxyType.toLowerCase()+'://'+rawInput;
     byId('errorSection').classList.add('hidden');
     byId('resultsSection').classList.add('hidden');
     byId('scanBtn').disabled=true;
@@ -131,27 +161,42 @@
       byId('resultsSection').classList.add('hidden');
       return;
     }
-    setStatus('اكتمل الفحص');
     byId('errorSection').classList.add('hidden');
     byId('resultsSection').classList.remove('hidden');
 
-    const score=Number(result.riskScore);
+    const hasRiskScore=result.riskScore!==null && result.riskScore!==undefined &&
+      Number.isFinite(Number(result.riskScore)) && Number(result.riskScore)>=0 && Number(result.riskScore)<=100;
     const circle=byId('riskScoreCircle');
-    circle.textContent=score+'%';
-    const color=score<35?'#22c55e':score<65?'#eab308':score<85?'#f97316':'#ef4444';
-    circle.style.borderColor=color;
-    circle.style.color=color;
-    byId('riskLabel').textContent=result.riskLabel || 'درجة المصدر';
-    byId('riskLabel').style.color=color;
-    byId('sourceVersion').textContent='ProxyCheck.io '+(result.sourceVersion || '');
+    if(hasRiskScore){
+      const score=Number(result.riskScore);
+      const color=score<35?'#22c55e':score<65?'#eab308':score<85?'#f97316':'#ef4444';
+      circle.textContent=score+'%';
+      circle.style.borderColor=color;
+      circle.style.color=color;
+      byId('riskLabel').textContent=result.riskLabel || 'درجة السمعة لدى المصدر';
+      byId('riskLabel').style.color=color;
+      setStatus('اكتمل الاتصال وفحص السمعة');
+    }else{
+      const color='#94a3b8';
+      circle.textContent='—';
+      circle.style.borderColor=color;
+      circle.style.color=color;
+      byId('riskLabel').textContent='الاتصال ناجح؛ السمعة غير متاحة';
+      byId('riskLabel').style.color=color;
+      setStatus('نجح الاتصال؛ تعذرت قراءة السمعة');
+    }
+    byId('sourceVersion').textContent=result.sourceVersion ? 'ProxyCheck.io '+result.sourceVersion : 'لم تتوفر نتيجة من مصدر السمعة';
     byId('resIp').textContent=result.exitIp || 'غير متاح';
-    byId('resType').textContent=result.classificationType || ((result.proxyDetected || result.vpnDetected)?'رُصد تصنيف':'لم يرصد المصدر تصنيف Proxy/VPN');
+    byId('resType').textContent=result.classificationType ||
+      (hasRiskScore ? ((result.proxyDetected || result.vpnDetected)?'رُصد تصنيف':'لم يرصد المصدر تصنيف Proxy/VPN') : 'بيانات السمعة غير متاحة');
     byId('resIsp').textContent=[result.provider,result.networkType,result.country].filter(Boolean).join(' / ') || 'غير متاح';
     byId('resConfidence').textContent=result.confidenceScore==null?'غير متاح':result.confidenceScore+'/100';
-    byId('resSignals').textContent=(result.detectionSignals || []).join('، ') || 'لا توجد إشارات إيجابية لدى المصدر';
+    byId('resSignals').textContent=(result.detectionSignals || []).join('، ') ||
+      (hasRiskScore ? 'لا توجد إشارات إيجابية لدى المصدر' : 'غير متاحة؛ تعذر جلب السمعة');
     const list=byId('evidenceList');
     list.replaceChildren();
     (result.evidence || []).forEach(item=>{const li=document.createElement('li');li.textContent=item;list.appendChild(li);});
+    if(result.reputationError){const li=document.createElement('li');li.textContent='تعذر فحص السمعة: '+result.reputationError;list.appendChild(li);}
   }
 
   byId('proxyInput').addEventListener('keydown',event=>{if(event.key==='Enter')runAudit();});

@@ -29,14 +29,15 @@ internal data class ProxyEndpoint(
 
 internal data class ProxyScanResult(
     val exitIp: String,
-    val riskScore: Int,
-    val sourceVersion: String = "v3",
-    val proxyDetected: Boolean,
-    val vpnDetected: Boolean,
-    val classificationType: String?,
-    val provider: String?,
-    val country: String?,
-    val asn: String?,
+    // Null means the proxy tunnel succeeded but the reputation provider gave no usable result.
+    val riskScore: Int?,
+    val sourceVersion: String? = null,
+    val proxyDetected: Boolean? = null,
+    val vpnDetected: Boolean? = null,
+    val classificationType: String? = null,
+    val provider: String? = null,
+    val country: String? = null,
+    val asn: String? = null,
     val evidence: List<String>,
     val estimatedDevicesAtAddress: Int? = null,
     val estimatedDevicesInSubnet: Int? = null,
@@ -58,7 +59,8 @@ internal data class ProxyScanResult(
     val scraperDetected: Boolean? = null,
     val compromisedDetected: Boolean? = null,
     val detectabilityScore: Int? = null,
-    val detectionSignals: List<String>? = null
+    val detectionSignals: List<String>? = null,
+    val reputationError: String? = null
 )
 
 internal class ProxyScanException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -103,65 +105,76 @@ internal object ProxyEndpointScanner {
                 )
             }
         }
+
+        // A successful HTTPS tunnel and a valid exit IP prove that the proxy worked.
+        // Reputation is a separate stage; its outage must never rewrite that result.
+        var reputationError: String? = null
         val intel = try {
             lookupReputation(exitIp, directNetwork)
-        } catch (e: Exception) {
-            throw ProxyScanException(
-                "تم الاتصال بالبروكسي واستخراج عنوان الخروج $exitIp، لكن تعذر التحقق من السمعة: ${safeMessage(e)}", e
-            )
+        } catch (error: Exception) {
+            reputationError = safeMessage(error)
+            null
         }
+
         val evidence = buildList {
-            add("تم إنشاء نفق اتصال مشفر عبر البروكسي بنجاح.")
+            add("تم إنشاء نفق HTTPS عبر البروكسي بنجاح.")
+            add("عنوان IP الظاهر للخروج: $exitIp")
             if (usedDefaultAndroidRoute) {
                 add("تعذر Android ربط المقبس بالشبكة الفعلية بسبب EPERM؛ أُعيد الفحص عبر مسار Android الافتراضي، وقد يمر عبر VPN نشط مثل Tun2TAP.")
             }
-            add("عنوان IP الظاهر للخروج: $exitIp")
-            if (intel.proxyDetected) add("مصدر السمعة صنّف عنوان الخروج كبروكسي.")
-            if (intel.vpnDetected) add("مصدر السمعة صنّف عنوان الخروج كـ VPN.")
-            if (intel.anonymousDetected == true) add("مصدر السمعة وضع علامة Anonymous على عنوان الخروج.")
-            intel.classificationType?.let { add("تصنيف عنوان IP لدى المصدر: $it") }
-            intel.provider?.let { add("الجهة/المزوّد: $it") }
-            intel.asn?.let { add("رقم النظام المستقل ASN: $it") }
-            intel.estimatedDevicesAtAddress?.let { add("تقدير الأجهزة خلف عنوان IP: نحو $it جهازاً") }
-            intel.estimatedDevicesInSubnet?.let { add("تقدير الأجهزة خلف الشبكة الفرعية: نحو $it جهازاً") }
-            intel.attackHistoryCount?.let { add("أحداث الهجوم المرصودة في سجل المصدر: $it") }
-            intel.confidenceScore?.let { add("ثقة تصنيف المصدر: $it/100") }
-            if (intel.detectabilityScore == 0 && intel.detectionSignals.orEmpty().isEmpty()) {
-                add("لم يرصد المصدر تصنيفاً إيجابياً ضمن إشاراته الحالية؛ هذا لا يضمن عدم تعرف مواقع أو قواعد بيانات أخرى على العنوان.")
+            if (intel == null) {
+                add("نجح الاتصال واستخراج IP، لكن بيانات السمعة غير متاحة حالياً.")
+                reputationError?.let { add("سبب تعذر السمعة: $it") }
+            } else {
+                if (intel.proxyDetected) add("مصدر السمعة صنّف عنوان الخروج كبروكسي.")
+                if (intel.vpnDetected) add("مصدر السمعة صنّف عنوان الخروج كـ VPN.")
+                if (intel.anonymousDetected == true) add("مصدر السمعة وضع علامة Anonymous على عنوان الخروج.")
+                intel.classificationType?.let { add("تصنيف عنوان IP لدى المصدر: $it") }
+                intel.provider?.let { add("الجهة/المزوّد: $it") }
+                intel.asn?.let { add("رقم النظام المستقل ASN: $it") }
+                intel.estimatedDevicesAtAddress?.let { add("تقدير الأجهزة خلف عنوان IP: نحو $it جهازاً") }
+                intel.estimatedDevicesInSubnet?.let { add("تقدير الأجهزة خلف الشبكة الفرعية: نحو $it جهازاً") }
+                intel.attackHistoryCount?.let { add("أحداث الهجوم المرصودة في سجل المصدر: $it") }
+                intel.confidenceScore?.let { add("ثقة تصنيف المصدر: $it/100") }
+                if (intel.detectabilityScore == 0 && intel.detectionSignals.orEmpty().isEmpty()) {
+                    add("لم يرصد المصدر تصنيفاً إيجابياً ضمن إشاراته الحالية؛ هذا لا يضمن عدم تعرف مواقع أو قواعد بيانات أخرى على العنوان.")
+                }
             }
         }
+
         return ProxyScanResult(
             exitIp = exitIp,
-            riskScore = intel.riskScore,
-            sourceVersion = intel.sourceVersion,
-            proxyDetected = intel.proxyDetected,
-            vpnDetected = intel.vpnDetected,
-            classificationType = intel.classificationType,
-            provider = intel.provider,
-            country = intel.country,
-            asn = intel.asn,
+            riskScore = intel?.riskScore,
+            sourceVersion = intel?.sourceVersion,
+            proxyDetected = intel?.proxyDetected,
+            vpnDetected = intel?.vpnDetected,
+            classificationType = intel?.classificationType,
+            provider = intel?.provider,
+            country = intel?.country,
+            asn = intel?.asn,
             evidence = evidence,
-            estimatedDevicesAtAddress = intel.estimatedDevicesAtAddress,
-            estimatedDevicesInSubnet = intel.estimatedDevicesInSubnet,
-            confidenceScore = intel.confidenceScore,
-            attackHistoryCount = intel.attackHistoryCount,
-            firstSeen = intel.firstSeen,
-            lastSeen = intel.lastSeen,
-            lastUpdated = intel.lastUpdated,
-            networkType = intel.networkType,
-            city = intel.city,
-            region = intel.region,
-            operatorName = intel.operatorName,
-            operatorPopularity = intel.operatorPopularity,
-            operatorAnonymity = intel.operatorAnonymity,
-            operatorServices = intel.operatorServices,
-            anonymousDetected = intel.anonymousDetected,
-            hostingDetected = intel.hostingDetected,
-            torDetected = intel.torDetected,
-            scraperDetected = intel.scraperDetected,
-            compromisedDetected = intel.compromisedDetected,
-            detectabilityScore = intel.detectabilityScore,
-            detectionSignals = intel.detectionSignals
+            estimatedDevicesAtAddress = intel?.estimatedDevicesAtAddress,
+            estimatedDevicesInSubnet = intel?.estimatedDevicesInSubnet,
+            confidenceScore = intel?.confidenceScore,
+            attackHistoryCount = intel?.attackHistoryCount,
+            firstSeen = intel?.firstSeen,
+            lastSeen = intel?.lastSeen,
+            lastUpdated = intel?.lastUpdated,
+            networkType = intel?.networkType,
+            city = intel?.city,
+            region = intel?.region,
+            operatorName = intel?.operatorName,
+            operatorPopularity = intel?.operatorPopularity,
+            operatorAnonymity = intel?.operatorAnonymity,
+            operatorServices = intel?.operatorServices,
+            anonymousDetected = intel?.anonymousDetected,
+            hostingDetected = intel?.hostingDetected,
+            torDetected = intel?.torDetected,
+            scraperDetected = intel?.scraperDetected,
+            compromisedDetected = intel?.compromisedDetected,
+            detectabilityScore = intel?.detectabilityScore,
+            detectionSignals = intel?.detectionSignals,
+            reputationError = reputationError
         )
     }
 
