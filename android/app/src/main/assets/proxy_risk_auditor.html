@@ -59,7 +59,7 @@
   <section class="card">
     <label>اختر نوع البروكسي</label>
     <div class="type-select" role="group" aria-label="نوع البروكسي">
-      <button type="button" id="btn_socks5" class="type-button active" onclick="setProxyType('SOCKS5')">SOCKS5</button>
+      <button type="button" id="btn_socks" class="type-button active" onclick="setProxyType('SOCKS')">SOCKS</button>
       <button type="button" id="btn_http" class="type-button" onclick="setProxyType('HTTP')">HTTP</button>
     </div>
     <label for="proxyInput">أدخل عنوان البروكسي وبياناته</label>
@@ -70,11 +70,11 @@
     </div>
     <div class="presets">
       <span>أمثلة للصيغة فقط:</span>
-      <button class="preset" onclick="fillPreset('socks5://user:pass@proxy.example:1080')">SOCKS5</button>
+      <button class="preset" onclick="fillPreset('socks://user:pass@proxy.example:1080')">SOCKS</button>
       <button class="preset" onclick="fillPreset('http://proxy.example:8080')">HTTP</button>
       <button class="preset" onclick="fillPreset('84.201.5.23:8950')">Host:Port</button>
     </div>
-    <p class="hint">يُستخدم SOCKS5 افتراضياً. عند إدخال host:port دون تحديد البروتوكول داخل العنوان، سيستخدم التطبيق النوع المختار أعلاه. ويمكنك إدخال البروتوكول صراحةً مثل http:// أو socks5://. بيانات الدخول لا تُحفظ من هذه الواجهة.</p>
+    <p class="hint">يُستخدم SOCKS افتراضياً مع التفاوض التلقائي مع الأنواع المتوافقة. عند إدخال host:port دون تحديد البروتوكول داخل العنوان، سيستخدم التطبيق النوع المختار أعلاه. ويمكنك إدخال البروتوكول صراحةً مثل socks:// أو http://. بيانات الدخول لا تُحفظ من هذه الواجهة.</p>
   </section>
 
   <section id="errorSection" class="error hidden" role="alert"></section>
@@ -110,8 +110,8 @@
 
 <script>
   const byId = id => document.getElementById(id);
-  // Matches the Android selector: SOCKS5 is the initial/default choice.
-  var selectedProxyType = "SOCKS5";
+  // Matches the Android selector: generic SOCKS is the initial/default choice.
+  var selectedProxyType = "SOCKS";
 
   function updateButtonStyles(activeButton, inactiveButton){
     activeButton.classList.add('active');
@@ -121,14 +121,14 @@
   }
 
   function setProxyType(type){
-    selectedProxyType = type === 'HTTP' ? 'HTTP' : 'SOCKS5';
-    if(selectedProxyType === 'HTTP') updateButtonStyles(byId('btn_http'),byId('btn_socks5'));
-    else updateButtonStyles(byId('btn_socks5'),byId('btn_http'));
+    selectedProxyType = type === 'HTTP' ? 'HTTP' : 'SOCKS';
+    if(selectedProxyType === 'HTTP') updateButtonStyles(byId('btn_http'),byId('btn_socks'));
+    else updateButtonStyles(byId('btn_socks'),byId('btn_http'));
   }
 
   function fillPreset(value){
     if(value.toLowerCase().startsWith('http://')) setProxyType('HTTP');
-    if(value.toLowerCase().startsWith('socks5://')) setProxyType('SOCKS5');
+    if(value.toLowerCase().startsWith('socks://') || value.toLowerCase().startsWith('socks5://')) setProxyType('SOCKS');
     byId('proxyInput').value=value;
   }
   function setStatus(value){ byId('systemStatus').textContent=value; }
