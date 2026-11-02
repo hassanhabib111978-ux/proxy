@@ -60,7 +60,9 @@ class MainActivity : Activity() {
     private lateinit var proxyNameInput: EditText
     private lateinit var proxyHostInput: EditText
     private lateinit var proxyPortInput: EditText
-    private lateinit var proxyProtocolSpinner: Spinner
+    private lateinit var btnHttp: Button
+    private lateinit var btnSocks5: Button
+    private var selectedProxyType: String = "SOCKS5"
     private lateinit var proxyUsernameInput: EditText
     private lateinit var proxyPasswordInput: EditText
     private lateinit var proxyScanButton: Button
@@ -179,14 +181,26 @@ class MainActivity : Activity() {
             setSingleLine(true)
             isSaveEnabled = false
         }
-        proxyProtocolSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(
-                this@MainActivity,
-                android.R.layout.simple_spinner_item,
-                arrayOf("اختر النوع", "HTTP", "HTTPS", "SOCKS5", "SOCKS (اكتشاف تلقائي)")
-            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-            setSelection(0)
+        // Quick protocol selector: SOCKS5 is selected by default.
+        btnHttp = Button(this).apply {
+            text = "HTTP"
+            isAllCaps = false
+            minHeight = dp(46)
+            setOnClickListener {
+                selectedProxyType = "HTTP"
+                updateButtonStyles(btnHttp, btnSocks5)
+            }
         }
+        btnSocks5 = Button(this).apply {
+            text = "SOCKS5"
+            isAllCaps = false
+            minHeight = dp(46)
+            setOnClickListener {
+                selectedProxyType = "SOCKS5"
+                updateButtonStyles(btnSocks5, btnHttp)
+            }
+        }
+        updateButtonStyles(btnSocks5, btnHttp)
         proxyUsernameInput = EditText(this).apply {
             hint = "اسم المستخدم / Login"
             textSize = 14f
@@ -306,8 +320,16 @@ class MainActivity : Activity() {
         portColumn.addView(fieldLabel("المنفذ"))
         portColumn.addView(proxyPortInput)
         val protocolColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        protocolColumn.addView(fieldLabel("نوع البروكسي كما حدده المزوّد"))
-        protocolColumn.addView(proxyProtocolSpinner)
+        protocolColumn.addView(fieldLabel("اختر نوع البروكسي"))
+        val proxyTypeButtons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            addView(btnSocks5, LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(btnHttp, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                marginStart = dp(6)
+            })
+        }
+        protocolColumn.addView(proxyTypeButtons)
         val connectionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
@@ -533,14 +555,26 @@ class MainActivity : Activity() {
         return host.trim() to port
     }
 
-    private fun selectedProxyProtocol(): ProxyProtocol? =
-        when (proxyProtocolSpinner.selectedItem?.toString()) {
-            "HTTP" -> ProxyProtocol.HTTP
-            "HTTPS" -> ProxyProtocol.HTTPS
-            "SOCKS5" -> ProxyProtocol.SOCKS5
-            "SOCKS (اكتشاف تلقائي)" -> ProxyProtocol.SOCKS_AUTO
-            else -> null
+    private fun selectedProxyProtocol(): ProxyProtocol =
+        if (selectedProxyType == "HTTP") ProxyProtocol.HTTP else ProxyProtocol.SOCKS5
+
+    private fun updateButtonStyles(activeButton: Button, inactiveButton: Button) {
+        activeButton.background = GradientDrawable().apply {
+            setColor(0xFF0F766E.toInt())
+            cornerRadius = dp(12).toFloat()
+            setStroke(dp(1), 0xFF0F766E.toInt())
         }
+        activeButton.setTextColor(Color.WHITE)
+        activeButton.alpha = 1f
+
+        inactiveButton.background = GradientDrawable().apply {
+            setColor(0xFFE2E8F0.toInt())
+            cornerRadius = dp(12).toFloat()
+            setStroke(dp(1), 0xFFCBD5E1.toInt())
+        }
+        inactiveButton.setTextColor(0xFF334155.toInt())
+        inactiveButton.alpha = 0.92f
+    }
 
     private fun runProxyScan() {
         val (host, port) = parseProxyAddressInputs()
@@ -553,10 +587,6 @@ class MainActivity : Activity() {
             return
         }
         val protocol = selectedProxyProtocol()
-        if (protocol == null) {
-            updateIndicator("نوع البروكسي", "اختر النوع أولاً", "اختر HTTP أو HTTPS أو SOCKS5 أو SOCKS (اكتشاف تلقائي) وفقاً لخيار المزوّد.")
-            return
-        }
         val proxyLabel = proxyNameInput.text.toString().trim()
         val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
         val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
