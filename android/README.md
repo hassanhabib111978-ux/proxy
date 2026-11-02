@@ -1,12 +1,12 @@
-# ProxyGuard Android 0.6.8 — HTTP/SOCKS5 proxy scanner
+# ProxyGuard Android 0.6.9 — VPN-aware HTTP/SOCKS5 proxy scanner
 
 ## Release status
 
-Version **0.6.8** keeps the ProxyCheck v3 intelligence and adds an explicit HTTP/SOCKS5 selector, with SOCKS5 selected by default, plus independent reporting for proxy connectivity and IP reputation. Version **0.6.0** added ProxyCheck v3 intelligence, including device estimates behind the exit IP and subnet, detection confidence, and attack-history counts. It remains an engineering/test release, not an independently validated commercial security product. It is not yet a production security product, an independently audited release, or a Google Play production-signed build.
+Version **0.6.9** improves VPN-aware routing diagnostics and distinguishes common SOCKS5 handshake failures (wrong protocol, missing credentials, or rejected authentication methods). Version **0.6.8** added the HTTP/SOCKS5 selector and independent reporting for proxy connectivity and IP reputation; version **0.6.0** added ProxyCheck v3 intelligence. It remains an engineering/test release, not an independently validated commercial security product, independently audited release, or Google Play production-signed build.
 
 ## Current behavior
 
-The Android app performs device-configuration checks locally and runs the pre-use proxy scan only after the user starts it. The pre-use scan supports HTTP CONNECT and SOCKS5 (including username/password authentication). A successful tunnel is reported independently from the reputation lookup.
+The Android app performs device-configuration checks locally and runs the pre-use proxy scan only after the user starts it. The pre-use scan supports HTTP CONNECT and SOCKS5 (including username/password authentication). A successful tunnel is reported independently from the reputation lookup. When Android denies binding to the physical network while a third-party VPN is active, the scanner no longer silently retries through that VPN; it explains how to exclude ProxyGuard from the VPN or temporarily pause the VPN. SOCKS5 failures identify common HTTP/SOCKS4/TLS protocol mismatches and missing authentication.
 
 - Detects whether the active Android network reports VPN transport.
 - Reads active network transport types and configured DNS resolver addresses.
@@ -51,13 +51,13 @@ The current importer validates CSV syntax, CIDR notation, field lengths, control
 - Every per-app proxy, tunnel, or routing configuration.
 - Whether a detected VPN/proxy is malicious, safe, or trustworthy.
 
-Android's platform APIs do not expose every app's network path to an ordinary application. Absence of a visible setting must never be interpreted as proof that no proxy exists.
+Android's platform APIs do not expose every app's network path to an ordinary application. An ordinary app cannot call `VpnService.protect()` on a VPN owned by another app. When a VPN such as Tun2TAP is active, allow ProxyGuard through that VPN's split-tunneling / excluded-app setting (or pause the VPN) before testing a separate proxy. Retrying through the normal app route while the VPN remains active can create a tunnel loop or test the VPN's egress rather than the selected proxy. Absence of a visible setting must never be interpreted as proof that no proxy exists.
 
 ## Build and automated tests
 
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.6.8-debug`. CI uses a persistent development-only debug signing identity to keep CI test APKs update-compatible. Do not reuse this identity for commercial releases; release builds require a separately protected private signing key. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
+The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.6.9-debug`. CI uses a persistent development-only debug signing identity to keep CI test APKs update-compatible. Do not reuse this identity for commercial releases; release builds require a separately protected private signing key. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
 
 ## Privacy
 
