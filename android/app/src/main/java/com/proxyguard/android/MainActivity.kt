@@ -766,10 +766,6 @@ class MainActivity : Activity() {
             return null
         }
         val protocol = selectedProxyProtocol()
-        if (protocol == null) {
-            Toast.makeText(this, "اختر نوع البروكسي كما حدده المزوّد أولاً.", Toast.LENGTH_LONG).show()
-            return null
-        }
         val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
         val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
         if ((username == null) != (password == null)) {
