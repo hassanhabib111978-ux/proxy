@@ -16,6 +16,16 @@ class ProxyInputParserTest {
     }
 
     @Test
+    fun parsesGenericSocksSchemeAsAutomaticNegotiation() {
+        val endpoint = ProxyInputParser.parse("socks://demo:secret@proxy.example:1080")
+        assertEquals("proxy.example", endpoint.host)
+        assertEquals(1080, endpoint.port)
+        assertEquals(ProxyProtocol.SOCKS_AUTO, endpoint.protocol)
+        assertEquals("demo", endpoint.username)
+        assertEquals("secret", endpoint.password)
+    }
+
+    @Test
     fun parsesAuthenticatedSocks5Url() {
         val endpoint = ProxyInputParser.parse("socks5://demo:secret@proxy.example:1080")
         assertEquals("proxy.example", endpoint.host)
