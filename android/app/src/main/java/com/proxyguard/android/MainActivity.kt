@@ -604,14 +604,23 @@ class MainActivity : Activity() {
                 mainHandler.post {
                     if (activityDestroyed) return@post
                     proxyScanButton.isEnabled = true
-                    val level = ProxyRiskPresentation.level(result.riskScore)
-                    val color = riskColor(result.riskScore)
-                    indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io ${result.sourceVersion}"
-                    indicatorValue.text = "${result.riskScore}%"
-                    indicatorValue.setTextColor(color)
-                    indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
+                    val riskScore = result.riskScore
+                    if (riskScore != null) {
+                        val level = ProxyRiskPresentation.level(riskScore)
+                        val color = riskColor(riskScore)
+                        indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io ${result.sourceVersion ?: ""}"
+                        indicatorValue.text = "$riskScore%"
+                        indicatorValue.setTextColor(color)
+                        indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يقدّم المصدر تصنيفاً إيجابياً"}"
+                        indicatorCard.background = indicatorBackground(blendColor(Color.WHITE, color, 0.16f))
+                    } else {
+                        indicatorTitle.text = "اتصال البروكسي"
+                        indicatorValue.text = "ناجح"
+                        indicatorValue.setTextColor(0xFF16A34A.toInt())
+                        indicatorLevel.text = "تم الاتصال واستخراج عنوان الخروج؛ بيانات السمعة غير متاحة حالياً. لا توجد نسبة خطر."
+                        indicatorCard.background = indicatorBackground(0xFFDCFCE7.toInt())
+                    }
                     indicatorLevel.setTextColor(0xFF334155.toInt())
-                    indicatorCard.background = indicatorBackground(blendColor(Color.WHITE, color, 0.16f))
 
                     val detectionScore = result.detectabilityScore
                     val detectedLabels = result.detectionSignals.orEmpty()
@@ -647,13 +656,13 @@ class MainActivity : Activity() {
                     output.text = buildString {
                         appendLine("تقرير فحص البروكسي")
                         if (proxyLabel.isNotBlank()) appendLine("اسم البروكسي: $proxyLabel")
-                        appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore}/100")
+                        appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore?.let { "$it/100" } ?: "غير متاحة؛ تعذر جلب السمعة"}")
                         appendLine("ثقة المصدر في تصنيف عنوان IP: ${result.detectabilityScore?.let { "$it/100" } ?: "غير متاح"}")
-                        appendLine("إشارات التصنيف المرصودة: ${result.detectionSignals.orEmpty().ifEmpty { listOf("لا توجد إشارات إيجابية لدى هذا المصدر وقت الفحص") }.joinToString("، ")}")
+                        appendLine("إشارات التصنيف المرصودة: ${result.detectionSignals?.takeIf { it.isNotEmpty() }?.joinToString("، ") ?: if (result.riskScore == null) "غير متاحة لعدم ورود بيانات السمعة" else "لم يرصد المصدر إشارات إيجابية"}")
                         appendLine("تنبيه: مؤشر التصنيف وثقة المصدر لا يمثلان احتمال اكتشاف البروكسي لدى كل موقع؛ فالمواقع قد تستخدم إشارات أخرى.")
                         appendLine("عنوان IP الخارج: ${result.exitIp}")
-                        appendLine("Proxy مصنّف من المصدر: ${if (result.proxyDetected) "نعم" else "لا"}")
-                        appendLine("VPN مصنّف من المصدر: ${if (result.vpnDetected) "نعم" else "لا"}")
+                        appendLine("Proxy مصنّف من المصدر: ${when (result.proxyDetected) { true -> "نعم"; false -> "لا"; null -> "غير متاح" }}")
+                        appendLine("VPN مصنّف من المصدر: ${when (result.vpnDetected) { true -> "نعم"; false -> "لا"; null -> "غير متاح" }}")
                         result.classificationType?.let { appendLine("تصنيف العنوان لدى المصدر: $it") }
                         result.provider?.let { appendLine("المزوّد: $it") }
                         result.country?.let { appendLine("بلد عنوان الخروج: $it") }
@@ -677,12 +686,14 @@ class MainActivity : Activity() {
                         result.firstSeen?.let { appendLine("أول رصد إيجابي: $it") }
                         result.lastSeen?.let { appendLine("آخر رصد إيجابي: $it") }
                         result.lastUpdated?.let { appendLine("آخر تحديث لبيانات المصدر: $it") }
-                        appendLine("مصدر السمعة: ProxyCheck.io ${result.sourceVersion}")
+                        appendLine("مصدر السمعة: ${result.sourceVersion?.let { "ProxyCheck.io $it" } ?: "غير متاح"}")
+                        result.reputationError?.let { appendLine("سبب تعذر السمعة: $it") }
                         appendLine()
                         appendLine("الأدلة:")
                         result.evidence.forEach { appendLine("• $it") }
                         appendLine()
-                        appendLine("تفسير درجة المخاطر: هذه درجة ProxyCheck.io ${result.sourceVersion} الخاصة بسمعة/مخاطر عنوان IP، وليست احتمالاً إحصائياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        if (result.riskScore != null) appendLine("تفسير درجة المخاطر: هذه درجة ProxyCheck.io ${result.sourceVersion ?: ""} الخاصة بسمعة/مخاطر عنوان IP، وليست احتمالاً إحصائياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        else appendLine("لم تصدر درجة خطر لأن خدمة السمعة لم توفر نتيجة. نجاح الاتصال لا يعني أن عنوان IP آمن.")
                         appendLine("ثقة التصنيف 0–100 تعني مدى ثقة هذا المصدر في تصنيف إيجابي محدد؛ وهي ليست نسبة احتمال الاكتشاف على جميع المواقع.")
                         appendLine("لا يحسب هذا الإصدار بعد درجة موحدة معايرة لجميع إشارات الشبكة والمتصفح والجلسة؛ لذلك لا ينبغي تفسير أي من الرقمين كاحتمال شامل للاكتشاف.")
                         appendLine("تقدير الأجهزة عامل مستقل. لا نرفع درجة الخطر آلياً بسبب كثرة الأجهزة وحدها؛ فقد تكون المشاركة طبيعية في شبكات الهاتف وCGNAT. يصبح المؤشر أكثر إثارة للقلق عند اقترانه بتصنيف Proxy/VPN أو سجل إساءة استخدام حديث.")
