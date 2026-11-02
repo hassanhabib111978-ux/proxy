@@ -264,4 +264,37 @@ class ProxyEndpointScannerTest {
         assertTrue(result.detectionSignals.orEmpty().contains("Hosting / مركز بيانات"))
     }
 
+
+    @Test
+    fun explainsHttpEndpointWhenSocks5WasSelected() {
+        assertTrue(
+            ProxyEndpointScanner.socks5NegotiationFailure(0x48, 0, false)
+                .contains("خادم HTTP")
+        )
+    }
+
+    @Test
+    fun explainsSocks4EndpointWhenSocks5WasSelected() {
+        assertTrue(
+            ProxyEndpointScanner.socks5NegotiationFailure(0x04, 0, false)
+                .contains("SOCKS4")
+        )
+    }
+
+    @Test
+    fun explainsAuthenticationRequiredBySocks5Server() {
+        assertTrue(
+            ProxyEndpointScanner.socks5NegotiationFailure(5, 2, false)
+                .contains("يتطلب اسم مستخدم وكلمة مرور")
+        )
+    }
+
+    @Test
+    fun explainsRejectedSocks5AuthenticationMethods() {
+        assertTrue(
+            ProxyEndpointScanner.socks5NegotiationFailure(5, 0xFF, false)
+                .contains("طرق المصادقة")
+        )
+    }
+
 }
