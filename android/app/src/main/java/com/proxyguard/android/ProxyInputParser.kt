@@ -27,7 +27,7 @@ internal object ProxyInputParser {
             "https" -> ProxyProtocol.HTTPS
             "socks5", "socks5h" -> ProxyProtocol.SOCKS5
             "socks" -> ProxyProtocol.SOCKS_AUTO
-            else -> throw IllegalArgumentException("الأنواع المدعومة: HTTP وHTTPS وSOCKS وSOCKS5.")
+            else -> throw IllegalArgumentException("الأنواع المدعومة: HTTP وHTTPS وSOCKS.")
         }
 
         require(uri.rawPath.isNullOrEmpty() || uri.rawPath == "/") {
