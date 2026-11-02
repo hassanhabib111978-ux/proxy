@@ -62,12 +62,16 @@ class ProxyRiskAuditorActivity : Activity() {
                     val result = ProxyEndpointScanner.scan(this@ProxyRiskAuditorActivity, endpoint)
                     val payload = JSONObject()
                         .put("ok", true)
-                        .put("riskScore", result.riskScore)
-                        .put("riskLabel", ProxyRiskPresentation.level(result.riskScore))
+                        .put("connectionSucceeded", true)
+                        .put("riskScore", result.riskScore ?: JSONObject.NULL)
+                        .put(
+                            "riskLabel",
+                            result.riskScore?.let { ProxyRiskPresentation.level(it) } ?: JSONObject.NULL
+                        )
                         .put("exitIp", result.exitIp)
-                        .put("sourceVersion", result.sourceVersion)
-                        .put("proxyDetected", result.proxyDetected)
-                        .put("vpnDetected", result.vpnDetected)
+                        .put("sourceVersion", result.sourceVersion ?: JSONObject.NULL)
+                        .put("proxyDetected", result.proxyDetected ?: JSONObject.NULL)
+                        .put("vpnDetected", result.vpnDetected ?: JSONObject.NULL)
                         .put("classificationType", result.classificationType ?: JSONObject.NULL)
                         .put("provider", result.provider ?: JSONObject.NULL)
                         .put("networkType", result.networkType ?: JSONObject.NULL)
@@ -75,6 +79,7 @@ class ProxyRiskAuditorActivity : Activity() {
                         .put("confidenceScore", result.confidenceScore ?: JSONObject.NULL)
                         .put("detectabilityScore", result.detectabilityScore ?: JSONObject.NULL)
                         .put("detectionSignals", JSONArray(result.detectionSignals.orEmpty()))
+                        .put("reputationError", result.reputationError ?: JSONObject.NULL)
                         .put("evidence", JSONArray(result.evidence))
                     publish(payload)
                 } catch (error: Exception) {
