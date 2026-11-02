@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+  <title>Proxy Risk Auditor</title>
+  <style>
+    :root{color-scheme:dark;--bg:#030712;--card:rgba(17,24,39,.88);--cyan:#22d3ee;--muted:#9ca3af;--border:rgba(59,130,246,.24)}
+    *{box-sizing:border-box}
+    body{margin:0;padding:18px;background:var(--bg);color:#f3f4f6;font-family:Tahoma,Arial,sans-serif}
+    .wrap{max-width:850px;margin:auto;display:grid;gap:18px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:0 0 25px rgba(59,130,246,.10)}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    h1{font-size:21px;color:var(--cyan);margin:0 0 8px}
+    p{margin:0;color:#9ca3af;line-height:1.7;font-size:13px}
+    .status{padding:8px 11px;border:1px solid rgba(34,197,94,.35);border-radius:10px;color:#86efac;font-size:11px;white-space:nowrap}
+    label{display:block;font-weight:bold;font-size:14px;margin-bottom:10px;color:#d1d5db}
+    input{width:100%;padding:14px;border-radius:11px;border:1px solid #374151;background:#111827;color:#a5f3fc;font-size:14px;direction:ltr;text-align:left;outline:none}
+    input:focus{border-color:var(--cyan)}
+    button{border:0;border-radius:11px;padding:13px 17px;background:var(--cyan);color:#07111d;font-weight:bold;font-size:14px;cursor:pointer}
+    button:disabled{opacity:.55;cursor:wait}
+    .formrow{display:grid;grid-template-columns:1fr auto;gap:10px}
+    .type-select{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
+    .type-button{background:#1f2937;color:#cbd5e1;border:1px solid #475569}
+    .type-button.active{background:#0e7490;color:#ecfeff;border:1px solid #22d3ee;box-shadow:0 0 0 2px rgba(34,211,238,.12)}
+    .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+    .presets span{font-size:11px;color:#9ca3af}
+    .preset{padding:7px 10px;background:#1f2937;color:#a5f3fc;font-size:11px}
+    .hint{margin-top:12px;font-size:11px;color:#9ca3af}
+    .hidden{display:none!important}
+    .grid{display:grid;grid-template-columns:1fr 2fr;gap:14px}
+    .score{text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:205px}
+    .scoretitle{font-size:12px;color:#9ca3af;margin-bottom:12px}
+    .circle{width:116px;height:116px;border:4px solid #22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#86efac;margin-bottom:10px}
+    .risklabel{font-size:13px;font-weight:bold;color:#86efac}
+    .details{display:grid;gap:0;align-content:center}
+    .detail{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid #283244;font-size:12px}
+    .detail:last-child{border-bottom:0}
+    .detail .key{color:#9ca3af}
+    .detail .value{color:#a5f3fc;text-align:left;direction:ltr;overflow-wrap:anywhere}
+    .warn{padding:13px;border:1px solid rgba(234,179,8,.3);background:rgba(113,63,18,.15);border-radius:12px;color:#fde68a;font-size:12px;line-height:1.7}
+    .error{padding:13px;border:1px solid rgba(239,68,68,.35);background:rgba(127,29,29,.18);border-radius:12px;color:#fecaca;font-size:13px;line-height:1.7;white-space:pre-wrap}
+    .evidence{font-size:12px;line-height:1.8;color:#d1d5db;padding-right:18px}
+    .muted{font-size:11px;color:#9ca3af}
+    @media(max-width:620px){body{padding:12px}.card{padding:16px}.formrow{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.score{min-height:180px}h1{font-size:18px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="card">
+    <div>
+      <h1>🛡️ PROXY RISK AUDITOR</h1>
+      <p>واجهة تدقيق البروكسي وقراءة سمعة عنوان الخروج من محرك ProxyGuard.</p>
+    </div>
+    <div id="systemStatus" class="status">المحرك المحلي جاهز</div>
+  </header>
+
+  <section class="card">
+    <label>اختر نوع البروكسي</label>
+    <div class="type-select" role="group" aria-label="نوع البروكسي">
+      <button type="button" id="btn_socks" class="type-button active" onclick="setProxyType('SOCKS')">SOCKS</button>
+      <button type="button" id="btn_http" class="type-button" onclick="setProxyType('HTTP')">HTTP</button>
+    </div>
+    <label for="proxyInput">أدخل عنوان البروكسي وبياناته</label>
+    <div class="formrow">
+      <input id="proxyInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+        placeholder="host:port أو user:pass@host:port">
+      <button id="scanBtn" onclick="runAudit()">بدء الفحص الأمني</button>
+    </div>
+    <div class="presets">
+      <span>أمثلة للصيغة فقط:</span>
+      <button class="preset" onclick="fillPreset('socks://user:pass@proxy.example:1080')">SOCKS</button>
+      <button class="preset" onclick="fillPreset('http://proxy.example:8080')">HTTP</button>
+      <button class="preset" onclick="fillPreset('84.201.5.23:8950')">Host:Port</button>
+    </div>
+    <p class="hint">يُستخدم SOCKS افتراضياً مع التفاوض التلقائي مع الأنواع المتوافقة. عند إدخال host:port دون تحديد البروتوكول داخل العنوان، سيستخدم التطبيق النوع المختار أعلاه. ويمكنك إدخال البروتوكول صراحةً مثل socks:// أو http://. بيانات الدخول لا تُحفظ من هذه الواجهة.</p>
+  </section>
+
+  <section id="errorSection" class="error hidden" role="alert"></section>
+
+  <section id="resultsSection" class="hidden">
+    <div class="grid">
+      <div class="card score">
+        <div class="scoretitle">درجة مخاطر عنوان IP لدى مصدر السمعة</div>
+        <div id="riskScoreCircle" class="circle">—</div>
+        <div id="riskLabel" class="risklabel">—</div>
+        <div id="sourceVersion" class="muted" style="margin-top:8px"></div>
+      </div>
+      <div class="card details">
+        <div class="detail"><span class="key">عنوان IP الظاهر</span><span id="resIp" class="value">—</span></div>
+        <div class="detail"><span class="key">تصنيف البروكسي / VPN</span><span id="resType" class="value">—</span></div>
+        <div class="detail"><span class="key">مصدر الشبكة</span><span id="resIsp" class="value">—</span></div>
+        <div class="detail"><span class="key">ثقة المصدر في التصنيف</span><span id="resConfidence" class="value">—</span></div>
+        <div class="detail"><span class="key">إشارات التصنيف</span><span id="resSignals" class="value">—</span></div>
+        <div class="detail"><span class="key">تسريبات الترويسات</span><span class="value" style="color:#fbbf24">غير مفحوصة</span></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2 style="font-size:14px;margin:0 0 10px;color:#67e8f9">أدلة الفحص</h2>
+      <ul id="evidenceList" class="evidence"></ul>
+    </div>
+    <div class="warn" style="margin-top:14px">
+      هذه النسبة هي درجة مخاطر/سمعة عنوان IP التي أعادها ProxyCheck.io، وليست احتمالاً إحصائياً بأن كل موقع سيكتشف الجلسة. فحص DNS وWebRTC وترويسات المتصفح وبصمته غير منفذ في هذه الشاشة؛ لذلك لا تعتبر عبارة «غير مفحوصة» نتيجة خالية من التسريب.
+    </div>
+  </section>
+
+  <p class="muted" style="text-align:center;padding:3px 8px">تُرسل بيانات عنوان IP الخارج إلى خدمة ProxyCheck.io لإحضار معلومات السمعة. لا تُرسل بيانات تسجيل الدخول إلى خدمة السمعة.</p>
+</div>
+
+<script>
+  const byId = id => document.getElementById(id);
+  // Matches the Android selector: generic SOCKS is the initial/default choice.
+  var selectedProxyType = "SOCKS";
+
+  function updateButtonStyles(activeButton, inactiveButton){
+    activeButton.classList.add('active');
+    inactiveButton.classList.remove('active');
+    activeButton.setAttribute('aria-pressed','true');
+    inactiveButton.setAttribute('aria-pressed','false');
+  }
+
+  function setProxyType(type){
+    selectedProxyType = type === 'HTTP' ? 'HTTP' : 'SOCKS';
+    if(selectedProxyType === 'HTTP') updateButtonStyles(byId('btn_http'),byId('btn_socks'));
+    else updateButtonStyles(byId('btn_socks'),byId('btn_http'));
+  }
+
+  function fillPreset(value){
+    if(value.toLowerCase().startsWith('http://')) setProxyType('HTTP');
+    if(value.toLowerCase().startsWith('socks://') || value.toLowerCase().startsWith('socks5://')) setProxyType('SOCKS');
+    byId('proxyInput').value=value;
+  }
+  function setStatus(value){ byId('systemStatus').textContent=value; }
+
+  function runAudit(){
+    const rawInput=byId('proxyInput').value.trim();
+    if(!rawInput){ byId('errorSection').textContent='أدخل بيانات البروكسي أولاً.'; byId('errorSection').classList.remove('hidden'); return; }
+    if(!window.AndroidProxy || typeof window.AndroidProxy.scanProxy !== 'function'){
+      byId('errorSection').textContent='محرك Android غير متاح. افتح هذه الصفحة من داخل تطبيق ProxyGuard.';
+      byId('errorSection').classList.remove('hidden'); return;
+    }
+    const hasExplicitProtocol=/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(rawInput);
+    const input=hasExplicitProtocol ? rawInput : selectedProxyType.toLowerCase()+'://'+rawInput;
+    byId('errorSection').classList.add('hidden');
+    byId('resultsSection').classList.add('hidden');
+    byId('scanBtn').disabled=true;
+    byId('scanBtn').textContent='جارٍ الفحص الحقيقي…';
+    setStatus('جارٍ فحص الاتصال');
+    try { window.AndroidProxy.scanProxy(input); }
+    catch(e){ onNativeResult({ok:false,error:'تعذر بدء الفحص: '+String(e)}); }
+  }
+
+  function onNativeResult(result){
+    byId('scanBtn').disabled=false;
+    byId('scanBtn').textContent='بدء الفحص الأمني';
+    if(!result || !result.ok){
+      setStatus('تعذر إكمال الفحص');
+      byId('errorSection').textContent=(result && result.error) ? result.error : 'حدث خطأ غير معروف.';
+      byId('errorSection').classList.remove('hidden');
+      byId('resultsSection').classList.add('hidden');
+      return;
+    }
+    byId('errorSection').classList.add('hidden');
+    byId('resultsSection').classList.remove('hidden');
+
+    const hasRiskScore=result.riskScore!==null && result.riskScore!==undefined &&
+      Number.isFinite(Number(result.riskScore)) && Number(result.riskScore)>=0 && Number(result.riskScore)<=100;
+    const circle=byId('riskScoreCircle');
+    if(hasRiskScore){
+      const score=Number(result.riskScore);
+      const color=score<35?'#22c55e':score<65?'#eab308':score<85?'#f97316':'#ef4444';
+      circle.textContent=score+'%';
+      circle.style.borderColor=color;
+      circle.style.color=color;
+      byId('riskLabel').textContent=result.riskLabel || 'درجة السمعة لدى المصدر';
+      byId('riskLabel').style.color=color;
+      setStatus('اكتمل الاتصال وفحص السمعة');
+    }else{
+      const color='#94a3b8';
+      circle.textContent='—';
+      circle.style.borderColor=color;
+      circle.style.color=color;
+      byId('riskLabel').textContent='الاتصال ناجح؛ السمعة غير متاحة';
+      byId('riskLabel').style.color=color;
+      setStatus('نجح الاتصال؛ تعذرت قراءة السمعة');
+    }
+    byId('sourceVersion').textContent=result.sourceVersion ? 'ProxyCheck.io '+result.sourceVersion : 'لم تتوفر نتيجة من مصدر السمعة';
+    byId('resIp').textContent=result.exitIp || 'غير متاح';
+    byId('resType').textContent=result.classificationType ||
+      (hasRiskScore ? ((result.proxyDetected || result.vpnDetected)?'رُصد تصنيف':'لم يرصد المصدر تصنيف Proxy/VPN') : 'بيانات السمعة غير متاحة');
+    byId('resIsp').textContent=[result.provider,result.networkType,result.country].filter(Boolean).join(' / ') || 'غير متاح';
+    byId('resConfidence').textContent=result.confidenceScore==null?'غير متاح':result.confidenceScore+'/100';
+    byId('resSignals').textContent=(result.detectionSignals || []).join('، ') ||
+      (hasRiskScore ? 'لا توجد إشارات إيجابية لدى المصدر' : 'غير متاحة؛ تعذر جلب السمعة');
+    const list=byId('evidenceList');
+    list.replaceChildren();
+    (result.evidence || []).forEach(item=>{const li=document.createElement('li');li.textContent=item;list.appendChild(li);});
+    if(result.reputationError){const li=document.createElement('li');li.textContent='تعذر فحص السمعة: '+result.reputationError;list.appendChild(li);}
+  }
+
+  byId('proxyInput').addEventListener('keydown',event=>{if(event.key==='Enter')runAudit();});
+</script>
+</body>
+</html>

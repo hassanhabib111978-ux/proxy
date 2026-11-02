@@ -60,7 +60,9 @@ class MainActivity : Activity() {
     private lateinit var proxyNameInput: EditText
     private lateinit var proxyHostInput: EditText
     private lateinit var proxyPortInput: EditText
-    private lateinit var proxyProtocolSpinner: Spinner
+    private lateinit var btnHttp: Button
+    private lateinit var btnSocks: Button
+    private var selectedProxyType: String = "SOCKS"
     private lateinit var proxyUsernameInput: EditText
     private lateinit var proxyPasswordInput: EditText
     private lateinit var proxyScanButton: Button
@@ -150,6 +152,15 @@ class MainActivity : Activity() {
             setTextColor(0xFF526579.toInt())
         }
 
+        val riskAuditorButton = Button(this).apply {
+            text = "افتح واجهة التدقيق الاحترافية الجديدة"
+            isAllCaps = false
+            minHeight = dp(48)
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, ProxyRiskAuditorActivity::class.java))
+            }
+        }
+
         proxyNameInput = EditText(this).apply {
             hint = "اسم أو ملاحظة للبروكسي (اختياري)"
             textSize = 14f
@@ -170,14 +181,26 @@ class MainActivity : Activity() {
             setSingleLine(true)
             isSaveEnabled = false
         }
-        proxyProtocolSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(
-                this@MainActivity,
-                android.R.layout.simple_spinner_item,
-                arrayOf("اختر النوع", "HTTP", "HTTPS", "SOCKS5", "SOCKS (اكتشاف تلقائي)")
-            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-            setSelection(0)
+        // Quick protocol selector: generic SOCKS auto-negotiation is selected by default.
+        btnHttp = Button(this).apply {
+            text = "HTTP"
+            isAllCaps = false
+            minHeight = dp(46)
+            setOnClickListener {
+                selectedProxyType = "HTTP"
+                updateButtonStyles(btnHttp, btnSocks)
+            }
         }
+        btnSocks = Button(this).apply {
+            text = "SOCKS"
+            isAllCaps = false
+            minHeight = dp(46)
+            setOnClickListener {
+                selectedProxyType = "SOCKS"
+                updateButtonStyles(btnSocks, btnHttp)
+            }
+        }
+        updateButtonStyles(btnSocks, btnHttp)
         proxyUsernameInput = EditText(this).apply {
             hint = "اسم المستخدم / Login"
             textSize = 14f
@@ -297,8 +320,16 @@ class MainActivity : Activity() {
         portColumn.addView(fieldLabel("المنفذ"))
         portColumn.addView(proxyPortInput)
         val protocolColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        protocolColumn.addView(fieldLabel("نوع البروكسي كما حدده المزوّد"))
-        protocolColumn.addView(proxyProtocolSpinner)
+        protocolColumn.addView(fieldLabel("اختر نوع البروكسي"))
+        val proxyTypeButtons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
+            addView(btnSocks, LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(btnHttp, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                marginStart = dp(6)
+            })
+        }
+        protocolColumn.addView(proxyTypeButtons)
         val connectionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
@@ -454,7 +485,7 @@ class MainActivity : Activity() {
         extrasPanel.addView(checkIpButton)
         extrasPanel.addView(importDatabaseButton)
         val privacy = TextView(this).apply {
-            text = "الخصوصية والحدود: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة، مع مسار v2 احتياطي عند تعذر v3. لا تُرسل بيانات الدخول إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة. HTTP وSOCKS5 وSOCKS4a العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ لا تدخل كلمة مرور حساسة عبر بروكسي غير موثوق. فحص DNS المعروض ليس اختبار تسريب DNS."
+            text = "الخصوصية والحدود: يتصل التطبيق بالبروكسي لاستخراج عنوان الخروج، ثم يرسل عنوان الخروج فقط إلى ProxyCheck.io لفحص السمعة، مع مسار v2 احتياطي عند تعذر v3. لا تُرسل بيانات الدخول إلى مزوّد السمعة ولا تُحفظ في التطبيق. تقدير الأجهزة ليس عدد المشتركين أو الجلسات النشطة. HTTP وSOCKS العاديان لا يشفّران بيانات الاعتماد أثناء النقل؛ لا تدخل كلمة مرور حساسة عبر بروكسي غير موثوق. فحص DNS المعروض ليس اختبار تسريب DNS."
             textSize = 11f
             setTextColor(0xFF526579.toInt())
             setPadding(0, dp(8), 0, dp(4))
@@ -469,6 +500,7 @@ class MainActivity : Activity() {
         }
         addSection(content, title, 0)
         addSection(content, subtitle, 8)
+        addSection(content, riskAuditorButton, 8)
         addSection(content, formCard, 8)
         addSection(content, scoreRow, 4)
         addSection(content, detailsToggle, 2)
@@ -523,14 +555,26 @@ class MainActivity : Activity() {
         return host.trim() to port
     }
 
-    private fun selectedProxyProtocol(): ProxyProtocol? =
-        when (proxyProtocolSpinner.selectedItem?.toString()) {
-            "HTTP" -> ProxyProtocol.HTTP
-            "HTTPS" -> ProxyProtocol.HTTPS
-            "SOCKS5" -> ProxyProtocol.SOCKS5
-            "SOCKS (اكتشاف تلقائي)" -> ProxyProtocol.SOCKS_AUTO
-            else -> null
+    private fun selectedProxyProtocol(): ProxyProtocol =
+        if (selectedProxyType == "HTTP") ProxyProtocol.HTTP else ProxyProtocol.SOCKS_AUTO
+
+    private fun updateButtonStyles(activeButton: Button, inactiveButton: Button) {
+        activeButton.background = GradientDrawable().apply {
+            setColor(0xFF0F766E.toInt())
+            cornerRadius = dp(12).toFloat()
+            setStroke(dp(1), 0xFF0F766E.toInt())
         }
+        activeButton.setTextColor(Color.WHITE)
+        activeButton.alpha = 1f
+
+        inactiveButton.background = GradientDrawable().apply {
+            setColor(0xFFE2E8F0.toInt())
+            cornerRadius = dp(12).toFloat()
+            setStroke(dp(1), 0xFFCBD5E1.toInt())
+        }
+        inactiveButton.setTextColor(0xFF334155.toInt())
+        inactiveButton.alpha = 0.92f
+    }
 
     private fun runProxyScan() {
         val (host, port) = parseProxyAddressInputs()
@@ -543,10 +587,6 @@ class MainActivity : Activity() {
             return
         }
         val protocol = selectedProxyProtocol()
-        if (protocol == null) {
-            updateIndicator("نوع البروكسي", "اختر النوع أولاً", "اختر HTTP أو HTTPS أو SOCKS5 أو SOCKS (اكتشاف تلقائي) وفقاً لخيار المزوّد.")
-            return
-        }
         val proxyLabel = proxyNameInput.text.toString().trim()
         val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
         val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
@@ -564,14 +604,23 @@ class MainActivity : Activity() {
                 mainHandler.post {
                     if (activityDestroyed) return@post
                     proxyScanButton.isEnabled = true
-                    val level = ProxyRiskPresentation.level(result.riskScore)
-                    val color = riskColor(result.riskScore)
-                    indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io ${result.sourceVersion}"
-                    indicatorValue.text = "${result.riskScore}%"
-                    indicatorValue.setTextColor(color)
-                    indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يصنّف المصدر العنوان كبروكسي أو VPN"}"
+                    val riskScore = result.riskScore
+                    if (riskScore != null) {
+                        val level = ProxyRiskPresentation.level(riskScore)
+                        val color = riskColor(riskScore)
+                        indicatorTitle.text = "درجة مخاطر IP لدى ProxyCheck.io ${result.sourceVersion ?: ""}"
+                        indicatorValue.text = "$riskScore%"
+                        indicatorValue.setTextColor(color)
+                        indicatorLevel.text = "$level • ${result.classificationType?.let { "صنّف المصدر العنوان كـ $it" } ?: "لم يقدّم المصدر تصنيفاً إيجابياً"}"
+                        indicatorCard.background = indicatorBackground(blendColor(Color.WHITE, color, 0.16f))
+                    } else {
+                        indicatorTitle.text = "اتصال البروكسي"
+                        indicatorValue.text = "ناجح"
+                        indicatorValue.setTextColor(0xFF16A34A.toInt())
+                        indicatorLevel.text = "تم الاتصال واستخراج عنوان الخروج؛ بيانات السمعة غير متاحة حالياً. لا توجد نسبة خطر."
+                        indicatorCard.background = indicatorBackground(0xFFDCFCE7.toInt())
+                    }
                     indicatorLevel.setTextColor(0xFF334155.toInt())
-                    indicatorCard.background = indicatorBackground(blendColor(Color.WHITE, color, 0.16f))
 
                     val detectionScore = result.detectabilityScore
                     val detectedLabels = result.detectionSignals.orEmpty()
@@ -607,13 +656,13 @@ class MainActivity : Activity() {
                     output.text = buildString {
                         appendLine("تقرير فحص البروكسي")
                         if (proxyLabel.isNotBlank()) appendLine("اسم البروكسي: $proxyLabel")
-                        appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore}/100")
+                        appendLine("درجة مخاطر IP لدى ProxyCheck.io: ${result.riskScore?.let { "$it/100" } ?: "غير متاحة؛ تعذر جلب السمعة"}")
                         appendLine("ثقة المصدر في تصنيف عنوان IP: ${result.detectabilityScore?.let { "$it/100" } ?: "غير متاح"}")
-                        appendLine("إشارات التصنيف المرصودة: ${result.detectionSignals.orEmpty().ifEmpty { listOf("لا توجد إشارات إيجابية لدى هذا المصدر وقت الفحص") }.joinToString("، ")}")
+                        appendLine("إشارات التصنيف المرصودة: ${result.detectionSignals?.takeIf { it.isNotEmpty() }?.joinToString("، ") ?: if (result.riskScore == null) "غير متاحة لعدم ورود بيانات السمعة" else "لم يرصد المصدر إشارات إيجابية"}")
                         appendLine("تنبيه: مؤشر التصنيف وثقة المصدر لا يمثلان احتمال اكتشاف البروكسي لدى كل موقع؛ فالمواقع قد تستخدم إشارات أخرى.")
                         appendLine("عنوان IP الخارج: ${result.exitIp}")
-                        appendLine("Proxy مصنّف من المصدر: ${if (result.proxyDetected) "نعم" else "لا"}")
-                        appendLine("VPN مصنّف من المصدر: ${if (result.vpnDetected) "نعم" else "لا"}")
+                        appendLine("Proxy مصنّف من المصدر: ${when (result.proxyDetected) { true -> "نعم"; false -> "لا"; null -> "غير متاح" }}")
+                        appendLine("VPN مصنّف من المصدر: ${when (result.vpnDetected) { true -> "نعم"; false -> "لا"; null -> "غير متاح" }}")
                         result.classificationType?.let { appendLine("تصنيف العنوان لدى المصدر: $it") }
                         result.provider?.let { appendLine("المزوّد: $it") }
                         result.country?.let { appendLine("بلد عنوان الخروج: $it") }
@@ -637,12 +686,14 @@ class MainActivity : Activity() {
                         result.firstSeen?.let { appendLine("أول رصد إيجابي: $it") }
                         result.lastSeen?.let { appendLine("آخر رصد إيجابي: $it") }
                         result.lastUpdated?.let { appendLine("آخر تحديث لبيانات المصدر: $it") }
-                        appendLine("مصدر السمعة: ProxyCheck.io ${result.sourceVersion}")
+                        appendLine("مصدر السمعة: ${result.sourceVersion?.let { "ProxyCheck.io $it" } ?: "غير متاح"}")
+                        result.reputationError?.let { appendLine("سبب تعذر السمعة: $it") }
                         appendLine()
                         appendLine("الأدلة:")
                         result.evidence.forEach { appendLine("• $it") }
                         appendLine()
-                        appendLine("تفسير درجة المخاطر: هذه درجة ProxyCheck.io ${result.sourceVersion} الخاصة بسمعة/مخاطر عنوان IP، وليست احتمالاً إحصائياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        if (result.riskScore != null) appendLine("تفسير درجة المخاطر: هذه درجة ProxyCheck.io ${result.sourceVersion ?: ""} الخاصة بسمعة/مخاطر عنوان IP، وليست احتمالاً إحصائياً بأن موقعاً معيناً سيكتشف البروكسي أو يحظره.")
+                        else appendLine("لم تصدر درجة خطر لأن خدمة السمعة لم توفر نتيجة. نجاح الاتصال لا يعني أن عنوان IP آمن.")
                         appendLine("ثقة التصنيف 0–100 تعني مدى ثقة هذا المصدر في تصنيف إيجابي محدد؛ وهي ليست نسبة احتمال الاكتشاف على جميع المواقع.")
                         appendLine("لا يحسب هذا الإصدار بعد درجة موحدة معايرة لجميع إشارات الشبكة والمتصفح والجلسة؛ لذلك لا ينبغي تفسير أي من الرقمين كاحتمال شامل للاكتشاف.")
                         appendLine("تقدير الأجهزة عامل مستقل. لا نرفع درجة الخطر آلياً بسبب كثرة الأجهزة وحدها؛ فقد تكون المشاركة طبيعية في شبكات الهاتف وCGNAT. يصبح المؤشر أكثر إثارة للقلق عند اقترانه بتصنيف Proxy/VPN أو سجل إساءة استخدام حديث.")
@@ -715,10 +766,6 @@ class MainActivity : Activity() {
             return null
         }
         val protocol = selectedProxyProtocol()
-        if (protocol == null) {
-            Toast.makeText(this, "اختر نوع البروكسي كما حدده المزوّد أولاً.", Toast.LENGTH_LONG).show()
-            return null
-        }
         val username = proxyUsernameInput.text.toString().takeIf { it.isNotBlank() }
         val password = proxyPasswordInput.text.toString().takeIf { it.isNotBlank() }
         if ((username == null) != (password == null)) {
@@ -732,7 +779,7 @@ class MainActivity : Activity() {
         message.contains("توثيق", ignoreCase = true) || message.contains("authentication", ignoreCase = true) ->
             "تحقق من اسم المستخدم وكلمة المرور وصيغة اسم المستخدم الخاصة بالجلسة أو الدولة."
         message.contains("رفض البروكسي", ignoreCase = true) || message.contains("CONNECT", ignoreCase = true) ->
-            "تحقق من نوع البروكسي والمنفذ؛ قد يكون النوع SOCKS5 بينما اخترت HTTP أو العكس، أو قد لا يسمح الخادم بنفق HTTPS."
+            "تحقق من نوع البروكسي والمنفذ؛ قد يكون الخادم من نوع SOCKS بينما اخترت HTTP أو العكس، أو قد لا يسمح الخادم بنفق HTTPS."
         message.contains("timeout", ignoreCase = true) || message.contains("timed out", ignoreCase = true) ->
             "انتهت مهلة الاتصال. تحقق من أن البروكسي نشط وأن عنوان الخادم والمنفذ صحيحان، ثم جرب شبكة أخرى."
         message.contains("UnknownHost", ignoreCase = true) || message.contains("resolve", ignoreCase = true) ->
