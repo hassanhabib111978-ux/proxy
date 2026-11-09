@@ -74,9 +74,7 @@ class ProxyIpWatchService : Service() {
             .putString(KEY_STATUS, "بدأت المراقبة؛ يجري الحصول على عنوان الأساس")
             .remove(KEY_INITIAL_IP)
             .remove(KEY_LAST_IP)
-            .remove(KEY_LAST_CHANGE_FROM)
-            .remove(KEY_LAST_CHANGE_TO)
-            .remove(KEY_LAST_CHANGE_AT)
+            // Keep the latest confirmed change timestamp and IP pair across monitor restarts.
             .putInt(KEY_CHANGE_COUNT, 0)
             .putLong(KEY_LAST_CHECK_AT, 0L)
             .apply()
@@ -165,7 +163,12 @@ class ProxyIpWatchService : Service() {
     }
 
     private fun notifyIpChanged(previousIp: String, currentIp: String, count: Int) {
-        val text = "العنوان السابق: " + previousIp + " — العنوان الجديد: " + currentIp
+        val detectedAt = java.text.SimpleDateFormat(
+            "dd/MM/yyyy HH:mm",
+            java.util.Locale.getDefault()
+        ).format(java.util.Date())
+        val text = "العنوان السابق: " + previousIp + " — العنوان الجديد: " + currentIp +
+            "\\nوقت اكتشاف التغيير: " + detectedAt
         val notification = Notification.Builder(this, ALERT_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("ProxyGuard: تم تغيّر عنوان IP")
