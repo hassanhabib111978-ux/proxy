@@ -168,7 +168,7 @@ class ProxyIpWatchService : Service() {
             java.util.Locale.getDefault()
         ).format(java.util.Date())
         val text = "العنوان السابق: " + previousIp + " — العنوان الجديد: " + currentIp +
-            "\\nوقت اكتشاف التغيير: " + detectedAt
+            " — وقت اكتشاف التغيير: " + detectedAt
         val notification = Notification.Builder(this, ALERT_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("ProxyGuard: تم تغيّر عنوان IP")
