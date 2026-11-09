@@ -825,7 +825,9 @@ class MainActivity : Activity() {
                 .format(java.util.Date(lastChangeAt))
             val elapsedMinutes = ((System.currentTimeMillis() - lastChangeAt).coerceAtLeast(0L)) / 60_000L
             builder.append("\nآخر مرة تغيّر فيها IP: ").append(time)
-            builder.append("\nمضى على رصد التغيير: ").append(elapsedMinutes).append(" دقيقة")
+            builder.append("\nمضى على رصد التغيير: ")
+            if (elapsedMinutes == 0L) builder.append("أقل من دقيقة")
+            else builder.append(elapsedMinutes).append(" دقيقة")
             if (lastFrom != null && lastTo != null) {
                 builder.append("\nالعنوان السابق: ").append(lastFrom).append(" ← العنوان الجديد: ").append(lastTo)
             }
