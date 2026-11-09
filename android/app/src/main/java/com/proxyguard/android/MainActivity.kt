@@ -820,14 +820,21 @@ class MainActivity : Activity() {
         if (lastIp != null) builder.append("\nعنوان الخروج المرصود حالياً: ").append(lastIp)
         if (displayActive) builder.append("\nفاصل الفحص: كل ").append(interval).append(" دقيقة")
         builder.append("\nعدد تغيّرات IP المسجلة في الجلسة: ").append(changeCount)
-        if (lastFrom != null && lastTo != null && lastChangeAt > 0L) {
-            val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+        if (lastChangeAt > 0L) {
+            val time = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
                 .format(java.util.Date(lastChangeAt))
-            builder.append("\nآخر تغيير: ").append(lastFrom).append(" ← ").append(lastTo)
-            builder.append("\nوقت الرصد: ").append(time)
+            val elapsedMinutes = ((System.currentTimeMillis() - lastChangeAt).coerceAtLeast(0L)) / 60_000L
+            builder.append("\nآخر مرة تغيّر فيها IP: ").append(time)
+            builder.append("\nمضى على رصد التغيير: ").append(elapsedMinutes).append(" دقيقة")
+            if (lastFrom != null && lastTo != null) {
+                builder.append("\nالعنوان السابق: ").append(lastFrom).append(" ← العنوان الجديد: ").append(lastTo)
+            }
+            builder.append("\nملاحظة: هذا وقت اكتشاف التغيير؛ وقد يكون التغيير الفعلي وقع بين فحصين.")
+        } else {
+            builder.append("\nآخر مرة تغيّر فيها IP: لا يوجد تغيير مؤكد مسجل بعد")
         }
         if (lastCheckAt > 0L) {
-            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+            val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
                 .format(java.util.Date(lastCheckAt))
             builder.append("\nآخر محاولة فحص: ").append(time)
         }
