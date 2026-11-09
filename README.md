@@ -48,11 +48,13 @@ The browser contacts ipify and a public STUN service. The app sends the observed
 
 A native Android app is available in [`android/`](android/). Local device diagnostics and CSV import remain available; pre-use proxy testing requires internet access to reach the user-supplied proxy, an exit-IP echo endpoint, and the external IP reputation provider.
 
-See [Android build and limitations](android/README.md) and the [local-first architecture decision](docs/android-local-first-plan.md). A GitHub Actions workflow builds a debug APK on changes to the Android project; download the APK from the successful workflow run's artifact named `proxyguard-android-0.6.10-debug`.
+See [Android build and limitations](android/README.md) and the [local-first architecture decision](docs/android-local-first-plan.md). A GitHub Actions workflow builds a debug APK on changes to the Android project; download the APK from the successful workflow run's artifact named `proxyguard-android-0.6.11-debug`.
 
 The Android app provides two separate pre-use indicators: the provider's IP reputation risk and its confidence that the exit IP matches anonymizing/proxy/VPN classifications in its database. The latter is not a probability of detection by every website. The app also provides a paste-first proxy scan form with HTTP and SOCKS quick buttons (SOCKS by default), optional username/password, a prominent scan button, a color-coded risk result (green 0–39, yellow 40–74, red 75–100), exit-IP discovery through the tested proxy, and ProxyCheck v3 reputation lookup. The report includes an estimate of devices behind the exit IP and subnet, detection confidence, and attack-history counts. Device estimates are not verified subscriber or active-session counts. The displayed provider risk score is not a calibrated probability of detection by every website. It does not perform a full DNS/WebRTC leak test or guarantee detection of every proxy.
 
 
-## ProxyGuard 0.6.10 update
+## ProxyGuard 0.6.11 update
+
+The Android app also retains the latest confirmed IP-change event across monitoring restarts and displays its local device date and time to the minute. This is the time the monitor detected the changed IP; the actual change can occur between scheduled checks.
 
 The Android UI labels the second option simply SOCKS, with generic negotiation enabled by default. The scanner first tries SOCKS5, then tries SOCKS4a on a fresh connection when no password is supplied. SOCKS4a does not support password authentication. It also avoids silently retrying a physical-network permission failure through an active third-party VPN, which could cause a tunnel loop or test the wrong egress. The app now tells the user to exclude ProxyGuard from Tun2TAP/VPN split tunneling or pause the VPN for the test. A successful proxy tunnel and extracted exit IP remain independent from the external reputation lookup; unavailable reputation is never represented as 0%.

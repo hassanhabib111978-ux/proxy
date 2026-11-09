@@ -1,8 +1,8 @@
-# ProxyGuard Android 0.6.10 — VPN-aware HTTP/SOCKS proxy scanner
+# ProxyGuard Android 0.6.11 — VPN-aware HTTP/SOCKS proxy scanner
 
 ## Release status
 
-Version **0.6.10** displays the protocol choice as **SOCKS** and automatically negotiates SOCKS5 first, then SOCKS4a when password authentication is not required. Version **0.6.9** improved VPN-aware routing diagnostics and SOCKS handshake errors. Version **0.6.8** added independent reporting for proxy connectivity and IP reputation; version **0.6.0** added ProxyCheck v3 intelligence. It remains an engineering/test release, not an independently validated commercial security product, independently audited release, or Google Play production-signed build.
+Version **0.6.11** displays the protocol choice as **SOCKS** and automatically negotiates SOCKS5 first, then SOCKS4a when password authentication is not required. Version **0.6.9** improved VPN-aware routing diagnostics and SOCKS handshake errors. Version **0.6.8** added independent reporting for proxy connectivity and IP reputation; version **0.6.0** added ProxyCheck v3 intelligence. It remains an engineering/test release, not an independently validated commercial security product, independently audited release, or Google Play production-signed build.
 
 ## Current behavior
 
@@ -57,7 +57,7 @@ Android's platform APIs do not expose every app's network path to an ordinary ap
 
 Open the `android/` directory in Android Studio with JDK 17 and Android SDK Platform 35, or use the GitHub Actions workflow `.github/workflows/android-build.yml`.
 
-The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.6.10-debug`. CI uses a persistent development-only debug signing identity to keep CI test APKs update-compatible. Do not reuse this identity for commercial releases; release builds require a separately protected private signing key. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
+The workflow runs `:app:testDebugUnitTest`, `:app:lintDebug`, and builds a debug APK. The downloadable artifact is named `proxyguard-android-0.6.11-debug`. CI uses a persistent development-only debug signing identity to keep CI test APKs update-compatible. Do not reuse this identity for commercial releases; release builds require a separately protected private signing key. A debug APK is for controlled testing only and is not the production release artifact. Do not bypass Google Play Protect or Android security warnings to install it.
 
 ## Privacy
 
@@ -85,6 +85,10 @@ Color bands in the Android UI: 0–39 green, 40–74 yellow, and 75–100 red (d
 
 The exit IP is disclosed to ProxyCheck.io for lookup. Proxy host, port, and credentials are not included in that reputation request. The app currently uses the provider's no-key endpoint; availability, query limits, response fields, and terms are controlled by the provider and must be reviewed before commercial launch. No guarantee is made that every proxy type, authentication scheme, DNS leak, WebRTC leak, or website-specific detection method is covered.
 
+
+## Minute-level last IP change time (0.6.11)
+
+The monitoring screen displays the most recently confirmed exit-IP change as a local device date/time in `dd/MM/yyyy HH:mm` format, plus the elapsed number of whole minutes. The latest confirmed change timestamp and old/new IP pair are retained when monitoring is stopped and later restarted; a new monitoring session resets its own change counter and establishes a fresh baseline without deleting the last known change record. The displayed minute is the **detection time**, not a guaranteed exact instant of the provider-side IP rotation: with a 1, 2, or 5 minute polling interval, the actual change may have occurred between two successful checks. Failed checks and unchanged IP observations do not update the last-change time.
 
 ## IP continuity monitoring (0.6.0)
 
