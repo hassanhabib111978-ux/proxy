@@ -3,7 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 val ciDebugKeystorePath = System.getenv("PROXYGUARD_DEBUG_KEYSTORE")
-
 android {
     signingConfigs {
         if (!ciDebugKeystorePath.isNullOrBlank()) {
@@ -27,9 +26,9 @@ android {
     defaultConfig {
         applicationId = "com.proxyguard.android"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 5
-        versionName = "0.3.0"
+        targetSdk = 34
+        versionCode = 100
+        versionName = "1.1.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -37,8 +36,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
-
-
 dependencies {
     testImplementation("junit:junit:4.13.2")
 }

@@ -1,0 +1,11 @@
+<resources>
+    <style name="ProxyGuardTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#030712</item>
+        <item name="android:navigationBarColor">#030712</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#030712</item>
+        <item name="android:colorAccent">#22D3EE</item>
+    </style>
+</resources>

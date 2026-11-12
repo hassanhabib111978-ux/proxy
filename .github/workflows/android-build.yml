@@ -91,6 +91,17 @@ jobs:
       - name: Install Android platform and build tools
         run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
+      - name: Restore ProxyGuard Professional sources and verify integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat proxyguard-professional-src.part* | base64 --decode > "$RUNNER_TEMP/proxyguard-professional-src.tar.gz"
+          echo "2e7dee216439b20cd916c13f7cc8714611be0bb60bec4c20c836af98042c53cb  $RUNNER_TEMP/proxyguard-professional-src.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/proxyguard-professional-src.tar.gz" -C app/src/main
+          test -s app/src/main/assets/index.html
+          test -s app/src/main/java/com/proxyguard/android/MainActivity.kt
+          test -s app/src/main/java/com/proxyguard/android/ProxyEngine.kt
+
       - name: Run Android unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
@@ -103,7 +114,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: proxyguard-android-0.3.0-debug
+          name: proxyguard-professional-1.1.0-debug
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/debug/app-debug.apk.sha256
