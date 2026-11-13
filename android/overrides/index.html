@@ -244,17 +244,26 @@ function parseProxyInput(){
   if(!raw){showError('الصق بيانات البروكسي أولاً.');return;}
   let host='',port=0,username='',password='',type=el('proxyType').value;
   const setHostPort=value=>{
-    let s=value.trim();
-    const bracketed=s.match(/^\\[([^\\]]+)\\]:(\\d+)$/);
-    if(bracketed)return {host:bracketed[1],port:Number(bracketed[2])};
-    const m=s.match(/^(.+):(\\d+)$/);
-    if(!m)return null;
-    return {host:m[1],port:Number(m[2])};
+    const s=value.trim();
+    if(s.startsWith('[')){
+      const close=s.indexOf(']');
+      if(close>1&&s[close+1]===':'){
+        const p=Number(s.slice(close+2));
+        if(Number.isInteger(p))return {host:s.slice(1,close),port:p};
+      }
+    }
+    const colon=s.lastIndexOf(':');
+    if(colon<1)return null;
+    const p=Number(s.slice(colon+1));
+    if(!Number.isInteger(p))return null;
+    return {host:s.slice(0,colon),port:p};
   };
   try{
-    if(/^(https?|socks5h?):\\/\\//i.test(raw)){
+    const schemeEnd=raw.indexOf('://');
+    const scheme=schemeEnd>0?raw.slice(0,schemeEnd).toLowerCase():'';
+    if(['http','https','socks5','socks5h'].includes(scheme)){
       const u=new URL(raw);
-      type=u.protocol.toLowerCase().startsWith('http')?'HTTP':'SOCKS5';
+      type=scheme.startsWith('http')?'HTTP':'SOCKS5';
       host=u.hostname;
       port=Number(u.port)||(type==='HTTP'?8080:1080);
       username=decodeURIComponent(u.username||'');
