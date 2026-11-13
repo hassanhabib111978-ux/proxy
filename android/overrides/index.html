@@ -155,28 +155,32 @@ button:disabled{opacity:.48;cursor:wait}
 
     <section class="card">
       <div class="monitor-row">
-        <div class="monitor-copy"><strong>مراقبة تلقائية لتغيّر IP</strong><span>يعيد فحص عنوان الخروج، ويسجل كل تغيير، ويتوقع موعد التغيير التالي من الفواصل الفعلية السابقة.</span></div>
+        <div class="monitor-copy"><strong>مراقبة دورة تغيّر IP المحددة</strong><span>اضبط مدة التدوير التي يوفرها مزوّد البروكسي، وسيحسب التطبيق موعد التغيير التالي منها.</span></div>
         <div class="monitor-controls">
-          <select id="intervalSelect" aria-label="فاصل المراقبة"><option value="5" selected>5 ثوانٍ</option><option value="10">10 ثوانٍ</option><option value="15">15 ثانية</option><option value="30">30 ثانية</option><option value="60">دقيقة</option></select>
+          <select id="intervalSelect" aria-label="فاصل فحص IP"><option value="3" selected>3 ثوانٍ</option><option value="5">5 ثوانٍ</option><option value="10">10 ثوانٍ</option><option value="15">15 ثانية</option><option value="30">30 ثانية</option><option value="60">دقيقة</option></select>
           <button id="monitorBtn" class="primary" onclick="toggleMonitor()">بدء المراقبة</button>
         </div>
       </div>
       <div class="rotation-grid">
         <div class="field">
-          <label for="alertInput">التنبيه قبل الموعد المتوقع (ثانية)</label>
+          <label for="rotationSelect">مدة دورة البروكسي</label>
+          <select id="rotationSelect"><option value="900">كل 15 دقيقة</option><option value="1800" selected>كل 30 دقيقة</option></select>
+        </div>
+        <div class="field">
+          <label for="alertInput">التنبيه قبل التغيير (ثانية)</label>
           <input id="alertInput" type="number" inputmode="numeric" min="1" max="120" value="10">
         </div>
         <label class="check-field"><input id="soundToggle" type="checkbox" checked> تفعيل التنبيه الصوتي</label>
         <button class="secondary" onclick="testAlertSound()">🔔 تجربة الصوت</button>
       </div>
       <div class="countdown-box">
-        <div class="countdown-label">الوقت المتبقي حتى التغيير القادم المتوقع</div>
+        <div class="countdown-label">الوقت المتبقي حتى نهاية دورة البروكسي</div>
         <div id="countdownValue" class="countdown-value">--:--</div>
         <div id="countdownCaption" class="countdown-caption">ابدأ المراقبة لتشغيل العد التنازلي.</div>
         <div class="countdown-track"><div id="countdownFill" class="countdown-fill"></div></div>
       </div>
       <div id="monitorState" class="monitor-state">المراقبة متوقفة. شغّلها لمتابعة أي تغيير في عنوان IP.</div>
-      <p class="small-note">يحتاج التوقع إلى ثلاث نقاط مسجلة على الأقل (أول عنوان وتغييران فعليان). يحسب متوسط آخر عشرة فواصل، ويعرض مقدار التذبذب. التوقع إحصائي تقريبي وليس ضماناً لموعد التغيير.</p>
+      <p class="small-note">العد مبني على مدة التدوير التي يحددها مزوّد البروكسي. يبدأ من وقت آخر تغيير فعلي مرصود؛ وإذا تأخر المزود يستمر التطبيق بالفحص حتى يظهر العنوان الجديد.</p>
     </section>
   </main>
 
@@ -198,7 +202,7 @@ let cycleStartAt=null;
 let currentIp=null;
 let displayTimer=null;
 let cachedHistory=[];
-let warnedForPrediction=null;
+let warnedForRotationAt=null;
 const el=id=>document.getElementById(id);
 
 function showPage(page){
@@ -259,87 +263,70 @@ function toggleMonitor(){
   window.AndroidProxy.startMonitor(JSON.stringify(cfg),values.pollSeconds,values.rotationSeconds,values.alertSeconds,values.soundEnabled);
 }
 function readMonitorSettings(){
+  const rotationSeconds=Number(el('rotationSelect').value);
   const alertSeconds=Number(el('alertInput').value);
   const pollSeconds=Number(el('intervalSelect').value);
   const soundEnabled=el('soundToggle').checked;
+  if(![900,1800].includes(rotationSeconds)){showError('اختر دورة 15 أو 30 دقيقة.');return null;}
   if(!Number.isInteger(alertSeconds)||alertSeconds<1||alertSeconds>120){showError('مدة التنبيه يجب أن تكون بين ثانية واحدة و120 ثانية.');return null;}
   if(!Number.isInteger(pollSeconds)||pollSeconds<2||pollSeconds>300){showError('فاصل الفحص يجب أن يكون بين 2 و300 ثانية.');return null;}
-  // rotationSeconds remains an internal compatibility value; prediction now comes from observed IP history.
-  return {rotationSeconds:300,alertSeconds,pollSeconds,soundEnabled};
+  return {rotationSeconds,alertSeconds,pollSeconds,soundEnabled};
 }
 function saveMonitorSettings(values){
   if(window.AndroidProxy&&values){
-    try{window.AndroidProxy.saveMonitorSettings(300,values.alertSeconds,values.pollSeconds,values.soundEnabled);}catch(_){ }
+    try{window.AndroidProxy.saveMonitorSettings(values.rotationSeconds,values.alertSeconds,values.pollSeconds,values.soundEnabled);}catch(_){}
   }
 }
 function loadMonitorSettings(){
   if(!window.AndroidProxy)return;
   try{
     const cfg=JSON.parse(window.AndroidProxy.getMonitorSettings());
+    el('rotationSelect').value=String(cfg.rotationSeconds||1800);
     el('alertInput').value=cfg.alertSeconds||10;
-    el('intervalSelect').value=String(cfg.pollSeconds||5);
+    el('intervalSelect').value=String(cfg.pollSeconds||3);
     el('soundToggle').checked=cfg.soundEnabled!==false;
-  }catch(_){ }
+  }catch(_){}
 }
 function testAlertSound(){
   if(window.AndroidProxy){try{window.AndroidProxy.playAlert();return;}catch(_){}}
   showError('تعذر تشغيل صوت التنبيه داخل التطبيق.');
 }
-function predictNextChange(){
-  const times=cachedHistory
-    .map(item=>Number(item.detectedAt))
-    .filter(value=>Number.isFinite(value)&&value>0)
-    .sort((a,b)=>a-b);
-  if(times.length<3)return null;
-  const gaps=[];
-  for(let i=1;i<times.length;i++)gaps.push((times[i]-times[i-1])/1000);
-  const recent=gaps.slice(-10);
-  const average=recent.reduce((sum,value)=>sum+value,0)/recent.length;
-  const variance=recent.length>1
-    ? recent.reduce((sum,value)=>sum+Math.pow(value-average,2),0)/recent.length
-    : 0;
-  const spread=Math.sqrt(variance);
-  return {at:times[times.length-1]+average*1000,spread,average};
-}
 function updateCountdown(){
-  const prediction=predictNextChange();
   const value=el('countdownValue');
-  if(!prediction){
+  const rotationSeconds=Number(el('rotationSelect').value)||1800;
+  const start=Number(cycleStartAt||lastChangedAt||0);
+  if(!start){
     value.textContent='--:--';
     value.className='countdown-value';
     el('countdownFill').style.width='0%';
-    el('countdownCaption').textContent='نحتاج إلى ثلاث نقاط مسجلة على الأقل: أول عنوان وتغييران فعليان.';
+    el('countdownCaption').textContent='نفّذ فحصاً ناجحاً أولاً لتسجيل عنوان IP وبدء حساب الدورة.';
     return;
   }
   const now=Date.now();
-  const remaining=prediction.at-now;
+  const dueAt=start+rotationSeconds*1000;
+  const remaining=dueAt-now;
   const seconds=Math.max(0,Math.ceil(Math.max(0,remaining)/1000));
   const hours=Math.floor(seconds/3600);
   const minutes=Math.floor((seconds%3600)/60);
   const secs=seconds%60;
-  value.textContent=hours>0
-    ? hours+':'+String(minutes).padStart(2,'0')+':'+String(secs).padStart(2,'0')
-    : String(minutes).padStart(2,'0')+':'+String(secs).padStart(2,'0');
-  const elapsed=Math.max(0,prediction.average*1000-remaining);
-  const percent=Math.min(100,Math.max(0,elapsed/(prediction.average*1000)*100));
-  el('countdownFill').style.width=percent.toFixed(1)+'%';
-  const expectedText=formatDate(prediction.at);
-  const spreadText='±'+Math.round(prediction.spread)+' ثانية';
+  value.textContent=hours>0?hours+':'+String(minutes).padStart(2,'0')+':'+String(secs).padStart(2,'0'):String(minutes).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+  const elapsed=Math.max(0,now-start);
+  el('countdownFill').style.width=Math.min(100,elapsed/(rotationSeconds*1000)*100).toFixed(1)+'%';
   const alertSeconds=Math.max(1,Number(el('alertInput').value)||10);
   const soundEnabled=el('soundToggle').checked;
   if(remaining<=0){
     value.className='countdown-value wait';
-    el('countdownCaption').textContent='تجاوزنا الموعد المتوقع ('+expectedText+'). ننتظر التغيير الفعلي؛ قد يتأخر أو لا يحدث وفق النمط السابق.';
+    el('countdownCaption').textContent='حان موعد التغيير المتوقع. ننتظر ظهور عنوان IP الجديد عبر الفحص المستمر.';
   }else if(remaining<=alertSeconds*1000){
     value.className='countdown-value warn';
-    el('countdownCaption').textContent='تنبيه: التغيير متوقع قرب '+expectedText+' ('+spreadText+').';
-    if(soundEnabled&&monitoring&&warnedForPrediction!==prediction.at){
-      warnedForPrediction=prediction.at;
+    el('countdownCaption').textContent='تنبيه: بقي '+seconds+' ثانية على نهاية دورة البروكسي.';
+    if(soundEnabled&&monitoring&&warnedForRotationAt!==dueAt){
+      warnedForRotationAt=dueAt;
       if(window.AndroidProxy){try{window.AndroidProxy.playAlert();}catch(_){}}
     }
   }else{
     value.className='countdown-value';
-    el('countdownCaption').textContent='الموعد المتوقع: '+expectedText+' · التذبذب التاريخي '+spreadText+'.';
+    el('countdownCaption').textContent='موعد التغيير المتوقع: '+formatDate(dueAt)+' · دورة كل '+(rotationSeconds/60)+' دقيقة.';
   }
 }
 function updateMonitorButton(){
@@ -388,7 +375,7 @@ function applyState(state){
   currentIp=state.currentIp&&state.currentIp!=='null'?state.currentIp:null;
   lastChangedAt=state.lastChangedAt&&state.lastChangedAt!=='null'?Number(state.lastChangedAt):null;
   const nextCycle=state.cycleStartAt&&state.cycleStartAt!=='null'?Number(state.cycleStartAt):null;
-  if(state.changed)warnedForPrediction=null;
+  if(state.changed)warnedForRotationAt=null;
   cycleStartAt=nextCycle;
   cachedHistory=Array.isArray(state.history)?state.history:[];
   el('currentIp').textContent=currentIp||'—';
@@ -452,7 +439,7 @@ window.addEventListener('load',()=>{
     catch(_){setStatus('تعذر تحميل السجل المحفوظ','warn');}
   }else{showError('هذه الواجهة مخصصة لتطبيق Android ProxyGuard.');}
   displayTimer=setInterval(()=>{updateDuration();updateCountdown();},1000);
-  ['alertInput','intervalSelect','soundToggle'].forEach(id=>{
+  ['rotationSelect','alertInput','intervalSelect','soundToggle'].forEach(id=>{
     el(id).addEventListener('change',()=>{
       const values=readMonitorSettings();
       if(values){
