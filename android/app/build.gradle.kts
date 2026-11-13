@@ -27,8 +27,8 @@ android {
         applicationId = "com.proxyguard.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 101
-        versionName = "1.2.0"
+        versionCode = 104
+        versionName = "1.4.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
