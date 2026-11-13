@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>ProxyGuard — Proxy Risk Auditor</title>
+<style>
+:root{color-scheme:dark;--bg:#030712;--card:#101827;--card2:#0b1424;--cyan:#22d3ee;--blue:#60a5fa;--text:#f3f7fb;--muted:#9aa9bc;--line:rgba(96,165,250,.2);--green:#4ade80;--amber:#fbbf24;--red:#fb7185}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% -15%,#12334a 0,#071426 38%,var(--bg) 76%);color:var(--text);font-family:Tahoma,Arial,sans-serif;min-height:100vh;padding:16px 14px 36px}
+.wrap{width:100%;max-width:820px;margin:0 auto;display:grid;gap:14px}
+.card{background:linear-gradient(145deg,rgba(17,29,48,.97),rgba(9,17,31,.97));border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 12px 34px rgba(0,0,0,.22)}
+header{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#0e7490,#164e63);display:grid;place-items:center;font-size:23px;box-shadow:0 0 25px rgba(34,211,238,.16)}
+h1{font-size:18px;letter-spacing:.7px;color:#a5f3fc;margin:0 0 5px}
+.subtitle{font-size:12px;color:var(--muted);line-height:1.7}
+.pill{white-space:nowrap;border:1px solid rgba(34,211,238,.28);border-radius:999px;padding:7px 10px;font-size:11px;color:#a5f3fc;background:rgba(8,145,178,.1)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:15px}
+.tab{border:1px solid var(--line);border-radius:12px;padding:10px;background:#101a2b;color:#9fb0c5;font-size:13px;font-weight:bold}
+.tab.active{background:linear-gradient(135deg,#0e7490,#155e75);border-color:#22d3ee;color:#ecfeff}
+.section-title{font-size:14px;color:#cffafe;font-weight:bold;margin:0 0 14px}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.field.full{grid-column:1/-1}
+label{display:block;color:#b9c7d8;font-size:12px;margin:0 0 7px}
+input,select{width:100%;min-width:0;border:1px solid #33445c;border-radius:11px;padding:13px 12px;background:#071120;color:#effbff;font-size:14px;outline:none;direction:ltr;text-align:left}
+input:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,211,238,.11)}
+input::placeholder{color:#5e718b}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+button{border:0;border-radius:12px;padding:13px 12px;font-size:13px;font-weight:bold;cursor:pointer;transition:filter .15s,transform .15s}
+button:active{transform:scale(.985)}
+button:disabled{opacity:.48;cursor:wait}
+.primary{background:linear-gradient(135deg,#22d3ee,#38bdf8);color:#04111d;box-shadow:0 7px 22px rgba(34,211,238,.16)}
+.secondary{background:#1b2b41;border:1px solid #334963;color:#d7e7f8}
+.danger{background:rgba(190,24,93,.14);border:1px solid rgba(251,113,133,.28);color:#fecdd3}
+.hint{color:var(--muted);font-size:11px;line-height:1.8;margin:12px 0 0}
+.status-line{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px;line-height:1.7;margin-top:12px}
+.dot{width:8px;height:8px;display:inline-block;border-radius:50%;background:#64748b;flex:0 0 auto}
+.dot.ok{background:var(--green);box-shadow:0 0 12px rgba(74,222,128,.55)}
+.dot.warn{background:var(--amber)}
+.dot.bad{background:var(--red)}
+.hidden{display:none!important}
+.result-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:11px}
+.ip-panel{min-height:152px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;background:linear-gradient(145deg,rgba(8,145,178,.14),rgba(15,23,42,.7));border:1px solid rgba(34,211,238,.22);border-radius:17px;padding:16px}
+.ip-label{font-size:11px;color:var(--muted);margin-bottom:9px}
+.ip-value{direction:ltr;font-size:clamp(21px,6vw,31px);font-weight:800;letter-spacing:.5px;color:#a5f3fc;overflow-wrap:anywhere}
+.ip-caption{font-size:11px;color:#86efac;margin-top:9px}
+.metric{background:#0a1424;border:1px solid rgba(148,163,184,.12);border-radius:15px;padding:14px;display:flex;flex-direction:column;justify-content:center;gap:8px}
+.metric-label{font-size:11px;color:var(--muted)}
+.metric-value{font-size:14px;font-weight:bold;color:#e0f2fe;line-height:1.6}
+.metric-value.small{font-size:12px;direction:ltr;text-align:right}
+.monitor-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.monitor-copy{flex:1;min-width:160px}
+.monitor-copy strong{display:block;font-size:13px;color:#e0f2fe;margin-bottom:5px}
+.monitor-copy span{font-size:11px;color:var(--muted);line-height:1.7}
+.monitor-controls{display:flex;align-items:center;gap:8px}
+.monitor-controls select{width:86px;padding:10px 8px;font-size:12px}
+.monitor-controls button{min-width:112px}
+.monitor-state{margin-top:13px;padding:12px 13px;border-radius:12px;background:rgba(2,6,23,.45);border:1px solid rgba(148,163,184,.13);font-size:12px;color:var(--muted);line-height:1.7}
+.rotation-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:16px}
+.check-field{display:flex;align-items:center;gap:9px;min-height:44px;padding:10px 12px;border:1px solid #33445c;border-radius:11px;background:#071120;color:#dbeafe;font-size:12px}
+.check-field input{width:18px;height:18px;padding:0;border:0;border-radius:4px;background:transparent;accent-color:#22d3ee;margin:0}
+.countdown-box{margin-top:15px;padding:16px;border:1px solid rgba(34,211,238,.22);border-radius:16px;background:linear-gradient(135deg,rgba(8,145,178,.12),rgba(2,6,23,.5));text-align:center}
+.countdown-label{font-size:11px;color:var(--muted)}
+.countdown-value{font-family:Consolas,monospace;font-size:clamp(34px,10vw,48px);font-weight:800;color:var(--green);direction:ltr;margin:6px 0}
+.countdown-value.warn{color:var(--red)}
+.countdown-value.wait{color:var(--amber)}
+.countdown-caption{font-size:11px;color:#b9c7d8;line-height:1.7}
+.countdown-track{height:8px;background:#071120;border-radius:99px;overflow:hidden;margin:13px 0 10px}
+.countdown-fill{height:100%;width:0;background:linear-gradient(90deg,#22d3ee,#4ade80);border-radius:99px;transition:width .25s linear}
+.countdown-actions{display:flex;justify-content:center;margin-top:11px}
+.countdown-actions button{min-width:170px}
+.small-note{font-size:10px;color:#8192a9;line-height:1.8;margin:9px 0 0}
+@media(max-width:520px){.rotation-grid{grid-template-columns:1fr 1fr}.countdown-actions button{width:100%}}
+.error-box{border:1px solid rgba(251,113,133,.35);background:rgba(127,29,29,.15);color:#fecaca;border-radius:13px;padding:13px;font-size:12px;line-height:1.8;white-space:pre-wrap}
+.history-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.history-list{display:grid;gap:9px}
+.history-item{border:1px solid rgba(148,163,184,.13);background:#0a1424;border-radius:13px;padding:12px;display:grid;gap:7px}
+.history-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.history-ip{direction:ltr;text-align:left;font-weight:bold;color:#a5f3fc;font-size:13px;overflow-wrap:anywhere}
+.history-tag{font-size:10px;color:#86efac;background:rgba(34,197,94,.1);padding:4px 7px;border-radius:999px;white-space:nowrap}
+.history-meta{font-size:11px;color:var(--muted);line-height:1.7}
+.empty{border:1px dashed #33445c;padding:20px;border-radius:13px;text-align:center;font-size:12px;color:var(--muted);line-height:1.8}
+.footer{text-align:center;font-size:10px;color:#708198;line-height:1.8;padding:0 8px}
+@media(max-width:520px){body{padding:11px 10px 28px}.card{padding:15px;border-radius:17px}.field-grid{grid-template-columns:1fr 1fr}.result-grid{grid-template-columns:1fr}.ip-panel{min-height:128px}.actions{grid-template-columns:1fr}.monitor-controls{width:100%}.monitor-controls select{flex:0 0 90px}.monitor-controls button{flex:1}.pill{font-size:10px;padding:6px 8px}h1{font-size:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="card">
+    <div class="brand">
+      <div class="logo">🛡️</div>
+      <div><h1>PROXY RISK AUDITOR</h1><div class="subtitle">ProxyGuard · فحص اتصال البروكسي ومراقبة عنوان الخروج</div></div>
+    </div>
+    <div id="topStatus" class="pill">جاهز للفحص</div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button id="tabScan" class="tab active" onclick="showPage('scan')">الفحص والمراقبة</button>
+    <button id="tabHistory" class="tab" onclick="showPage('history')">سجل تغيّرات IP</button>
+  </div>
+
+  <main id="scanPage" class="page">
+    <section class="card">
+      <h2 class="section-title">بيانات اتصال البروكسي</h2>
+      <div class="field-grid">
+        <div class="field">
+          <label for="proxyType">نوع البروكسي</label>
+          <select id="proxyType"><option value="SOCKS5">SOCKS5</option><option value="HTTP">HTTP</option></select>
+        </div>
+        <div class="field">
+          <label for="proxyPort">المنفذ Port</label>
+          <input id="proxyPort" type="number" inputmode="numeric" min="1" max="65535" placeholder="1080">
+        </div>
+        <div class="field full">
+          <label for="proxyHost">عنوان خادم البروكسي Host / IP</label>
+          <input id="proxyHost" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="proxy.example.com أو 192.0.2.10">
+        </div>
+        <div class="field">
+          <label for="proxyUser">اسم المستخدم (اختياري)</label>
+          <input id="proxyUser" type="text" autocomplete="off" autocapitalize="off" placeholder="username">
+        </div>
+        <div class="field">
+          <label for="proxyPass">كلمة المرور (اختياري)</label>
+          <input id="proxyPass" type="password" autocomplete="off" placeholder="••••••••">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="checkBtn" class="primary" onclick="checkProxy()">فحص البروكسي الآن</button>
+        <button class="secondary" onclick="clearInputs()">مسح الحقول</button>
+      </div>
+      <div class="status-line"><span id="statusDot" class="dot"></span><span id="statusText">أدخل بيانات البروكسي ثم ابدأ الفحص.</span></div>
+      <p class="hint">يُرسل التطبيق طلب HTTPS إلى api.ipify.org عبر البروكسي المدخل لقراءة عنوان IP الخارجي الفعلي. لا يحفظ التطبيق اسم المستخدم أو كلمة المرور.</p>
+    </section>
+
+    <section id="errorSection" class="error-box hidden" role="alert"></section>
+
+    <section class="card">
+      <h2 class="section-title">نتيجة الاتصال الحالية</h2>
+      <div class="result-grid">
+        <div class="ip-panel">
+          <div class="ip-label">عنوان IP الذي خرج عبر البروكسي</div>
+          <div id="currentIp" class="ip-value">—</div>
+          <div id="ipCaption" class="ip-caption">لم يُسجّل عنوان بعد</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">وقت آخر تغيير / أول تسجيل</div>
+          <div id="lastChanged" class="metric-value">—</div>
+          <div class="metric-label">مدة ثبات العنوان الحالي</div>
+          <div id="currentDuration" class="metric-value">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="monitor-row">
+        <div class="monitor-copy"><strong>مراقبة تلقائية لتغيّر IP</strong><span>يعيد فحص عنوان الخروج، ويسجل كل تغيير، ويتوقع موعد التغيير التالي من الفواصل الفعلية السابقة.</span></div>
+        <div class="monitor-controls">
+          <select id="intervalSelect" aria-label="فاصل المراقبة"><option value="5" selected>5 ثوانٍ</option><option value="10">10 ثوانٍ</option><option value="15">15 ثانية</option><option value="30">30 ثانية</option><option value="60">دقيقة</option></select>
+          <button id="monitorBtn" class="primary" onclick="toggleMonitor()">بدء المراقبة</button>
+        </div>
+      </div>
+      <div class="rotation-grid">
+        <div class="field">
+          <label for="alertInput">التنبيه قبل الموعد المتوقع (ثانية)</label>
+          <input id="alertInput" type="number" inputmode="numeric" min="1" max="120" value="10">
+        </div>
+        <label class="check-field"><input id="soundToggle" type="checkbox" checked> تفعيل التنبيه الصوتي</label>
+        <button class="secondary" onclick="testAlertSound()">🔔 تجربة الصوت</button>
+      </div>
+      <div class="countdown-box">
+        <div class="countdown-label">الوقت المتبقي حتى التغيير القادم المتوقع</div>
+        <div id="countdownValue" class="countdown-value">--:--</div>
+        <div id="countdownCaption" class="countdown-caption">ابدأ المراقبة لتشغيل العد التنازلي.</div>
+        <div class="countdown-track"><div id="countdownFill" class="countdown-fill"></div></div>
+      </div>
+      <div id="monitorState" class="monitor-state">المراقبة متوقفة. شغّلها لمتابعة أي تغيير في عنوان IP.</div>
+      <p class="small-note">يحتاج التوقع إلى ثلاث نقاط مسجلة على الأقل (أول عنوان وتغييران فعليان). يحسب متوسط آخر عشرة فواصل، ويعرض مقدار التذبذب. التوقع إحصائي تقريبي وليس ضماناً لموعد التغيير.</p>
+    </section>
+  </main>
+
+  <main id="historyPage" class="page hidden">
+    <section class="card">
+      <div class="history-head"><h2 class="section-title" style="margin:0">سجل تغيّرات عنوان IP</h2><button class="danger" onclick="clearHistory()">مسح السجل</button></div>
+      <div id="historyList" class="history-list"><div class="empty">لا توجد تغيّرات مسجلة حتى الآن.</div></div>
+    </section>
+  </main>
+
+  <div class="footer">يُسجّل التطبيق وقت اكتشاف التغيير، وليس لحظة حدوثه الدقيقة بين فحصين. تستمر المراقبة ما دام التطبيق يعمل؛ وقد يوقف أندرويد المهام عند إغلاق التطبيق أو إنهاءه.</div>
+</div>
+
+<script>
+'use strict';
+let monitoring=false;
+let lastChangedAt=null;
+let cycleStartAt=null;
+let currentIp=null;
+let displayTimer=null;
+let cachedHistory=[];
+let warnedForPrediction=null;
+const el=id=>document.getElementById(id);
+
+function showPage(page){
+  const scan=page==='scan';
+  el('scanPage').classList.toggle('hidden',!scan);
+  el('historyPage').classList.toggle('hidden',scan);
+  el('tabScan').classList.toggle('active',scan);
+  el('tabHistory').classList.toggle('active',!scan);
+}
+function setStatus(text,kind='normal'){
+  el('statusText').textContent=text;
+  el('statusDot').className='dot'+(kind==='ok'?' ok':kind==='warn'?' warn':kind==='bad'?' bad':'');
+  el('topStatus').textContent=kind==='ok'?'الاتصال ناجح':kind==='bad'?'تعذر الاتصال':monitoring?'المراقبة تعمل':'جاهز للفحص';
+}
+function getConfig(){
+  return {
+    host:el('proxyHost').value.trim(),
+    port:Number(el('proxyPort').value),
+    type:el('proxyType').value,
+    username:el('proxyUser').value,
+    password:el('proxyPass').value
+  };
+}
+function validateConfig(c){
+  if(!c.host)return 'أدخل عنوان خادم البروكسي.';
+  if(!Number.isInteger(c.port)||c.port<1||c.port>65535)return 'أدخل منفذاً صحيحاً بين 1 و65535.';
+  if(Boolean(c.username)!==Boolean(c.password))return 'أدخل اسم المستخدم وكلمة المرور معاً، أو اتركهما فارغين.';
+  return '';
+}
+function checkProxy(){
+  const cfg=getConfig(),err=validateConfig(cfg);
+  if(err){showError(err);return;}
+  if(!window.AndroidProxy){showError('محرك Android غير متاح. يجب تشغيل هذه الواجهة داخل تطبيق ProxyGuard.');return;}
+  el('checkBtn').disabled=true;
+  el('checkBtn').textContent='جارٍ الاتصال عبر البروكسي…';
+  el('errorSection').classList.add('hidden');
+  setStatus('جارٍ اختبار اتصال البروكسي وخدمة IP…','warn');
+  try{window.AndroidProxy.checkProxy(JSON.stringify(cfg));}
+  catch(e){onProxyResult({ok:false,error:'تعذر بدء الفحص: '+String(e)});}
+}
+function toggleMonitor(){
+  if(monitoring){
+    if(window.AndroidProxy)window.AndroidProxy.stopMonitor();
+    monitoring=false;updateMonitorButton();
+    el('monitorState').textContent='تم إيقاف المراقبة. السجل السابق محفوظ.';
+    setStatus('المراقبة متوقفة');
+    return;
+  }
+  const cfg=getConfig(),err=validateConfig(cfg);
+  if(err){showError(err);return;}
+  if(!window.AndroidProxy){showError('محرك Android غير متاح.');return;}
+  const values=readMonitorSettings();
+  if(!values)return;
+  saveMonitorSettings(values);
+  monitoring=true;updateMonitorButton();
+  el('monitorState').textContent='المراقبة تعمل: إعادة الفحص كل '+values.pollSeconds+' ثانية.';
+  setStatus('بدأت المراقبة التلقائية','ok');
+  window.AndroidProxy.startMonitor(JSON.stringify(cfg),values.pollSeconds,values.rotationSeconds,values.alertSeconds,values.soundEnabled);
+}
+function readMonitorSettings(){
+  const alertSeconds=Number(el('alertInput').value);
+  const pollSeconds=Number(el('intervalSelect').value);
+  const soundEnabled=el('soundToggle').checked;
+  if(!Number.isInteger(alertSeconds)||alertSeconds<1||alertSeconds>120){showError('مدة التنبيه يجب أن تكون بين ثانية واحدة و120 ثانية.');return null;}
+  if(!Number.isInteger(pollSeconds)||pollSeconds<2||pollSeconds>300){showError('فاصل الفحص يجب أن يكون بين 2 و300 ثانية.');return null;}
+  // rotationSeconds remains an internal compatibility value; prediction now comes from observed IP history.
+  return {rotationSeconds:300,alertSeconds,pollSeconds,soundEnabled};
+}
+function saveMonitorSettings(values){
+  if(window.AndroidProxy&&values){
+    try{window.AndroidProxy.saveMonitorSettings(300,values.alertSeconds,values.pollSeconds,values.soundEnabled);}catch(_){ }
+  }
+}
+function loadMonitorSettings(){
+  if(!window.AndroidProxy)return;
+  try{
+    const cfg=JSON.parse(window.AndroidProxy.getMonitorSettings());
+    el('alertInput').value=cfg.alertSeconds||10;
+    el('intervalSelect').value=String(cfg.pollSeconds||5);
+    el('soundToggle').checked=cfg.soundEnabled!==false;
+  }catch(_){ }
+}
+function testAlertSound(){
+  if(window.AndroidProxy){try{window.AndroidProxy.playAlert();return;}catch(_){}}
+  showError('تعذر تشغيل صوت التنبيه داخل التطبيق.');
+}
+function predictNextChange(){
+  const times=cachedHistory
+    .map(item=>Number(item.detectedAt))
+    .filter(value=>Number.isFinite(value)&&value>0)
+    .sort((a,b)=>a-b);
+  if(times.length<3)return null;
+  const gaps=[];
+  for(let i=1;i<times.length;i++)gaps.push((times[i]-times[i-1])/1000);
+  const recent=gaps.slice(-10);
+  const average=recent.reduce((sum,value)=>sum+value,0)/recent.length;
+  const variance=recent.length>1
+    ? recent.reduce((sum,value)=>sum+Math.pow(value-average,2),0)/recent.length
+    : 0;
+  const spread=Math.sqrt(variance);
+  return {at:times[times.length-1]+average*1000,spread,average};
+}
+function updateCountdown(){
+  const prediction=predictNextChange();
+  const value=el('countdownValue');
+  if(!prediction){
+    value.textContent='--:--';
+    value.className='countdown-value';
+    el('countdownFill').style.width='0%';
+    el('countdownCaption').textContent='نحتاج إلى ثلاث نقاط مسجلة على الأقل: أول عنوان وتغييران فعليان.';
+    return;
+  }
+  const now=Date.now();
+  const remaining=prediction.at-now;
+  const seconds=Math.max(0,Math.ceil(Math.max(0,remaining)/1000));
+  const hours=Math.floor(seconds/3600);
+  const minutes=Math.floor((seconds%3600)/60);
+  const secs=seconds%60;
+  value.textContent=hours>0
+    ? hours+':'+String(minutes).padStart(2,'0')+':'+String(secs).padStart(2,'0')
+    : String(minutes).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+  const elapsed=Math.max(0,prediction.average*1000-remaining);
+  const percent=Math.min(100,Math.max(0,elapsed/(prediction.average*1000)*100));
+  el('countdownFill').style.width=percent.toFixed(1)+'%';
+  const expectedText=formatDate(prediction.at);
+  const spreadText='±'+Math.round(prediction.spread)+' ثانية';
+  const alertSeconds=Math.max(1,Number(el('alertInput').value)||10);
+  const soundEnabled=el('soundToggle').checked;
+  if(remaining<=0){
+    value.className='countdown-value wait';
+    el('countdownCaption').textContent='تجاوزنا الموعد المتوقع ('+expectedText+'). ننتظر التغيير الفعلي؛ قد يتأخر أو لا يحدث وفق النمط السابق.';
+  }else if(remaining<=alertSeconds*1000){
+    value.className='countdown-value warn';
+    el('countdownCaption').textContent='تنبيه: التغيير متوقع قرب '+expectedText+' ('+spreadText+').';
+    if(soundEnabled&&monitoring&&warnedForPrediction!==prediction.at){
+      warnedForPrediction=prediction.at;
+      if(window.AndroidProxy){try{window.AndroidProxy.playAlert();}catch(_){}}
+    }
+  }else{
+    value.className='countdown-value';
+    el('countdownCaption').textContent='الموعد المتوقع: '+expectedText+' · التذبذب التاريخي '+spreadText+'.';
+  }
+}
+function updateMonitorButton(){
+  el('monitorBtn').textContent=monitoring?'إيقاف المراقبة':'بدء المراقبة';
+  el('monitorBtn').className=monitoring?'danger':'primary';
+}
+function showError(text){
+  el('errorSection').textContent=text;
+  el('errorSection').classList.remove('hidden');
+  setStatus('تعذر إكمال العملية','bad');
+}
+function onProxyResult(result){
+  el('checkBtn').disabled=false;
+  el('checkBtn').textContent='فحص البروكسي الآن';
+  if(!result||!result.ok){showError(result&&result.error?result.error:'حدث خطأ غير معروف.');return;}
+  el('errorSection').classList.add('hidden');
+  setStatus(result.message||'نجح الاتصال عبر البروكسي','ok');
+  el('ipCaption').textContent='تم جلب العنوان عبر البروكسي · '+(result.elapsedMs||0)+' ms';
+  if(result.state)applyState(result.state);
+}
+function onMonitorResult(result){
+  if(!result||!result.ok){
+    el('monitorState').textContent='تعذر الفحص الدوري: '+(result&&result.error?result.error:'خطأ غير معروف');
+    setStatus('المراقبة تعمل مع تعثر آخر فحص','warn');
+    return;
+  }
+  el('errorSection').classList.add('hidden');
+  if(result.state){
+    applyState(result.state);
+    if(result.state.changed){
+      el('monitorState').textContent='تم رصد تغيّر عنوان IP. تم تسجيل العنوان السابق والجديد ووقت الرصد في السجل.';
+      setStatus('تم رصد تغيّر IP','ok');
+    }else{
+      el('monitorState').textContent='المراقبة تعمل. آخر فحص ناجح: '+formatDate(Date.now())+' · '+result.ip;
+      setStatus('المراقبة تعمل — IP ثابت','ok');
+    }
+  }
+}
+function onMonitorStopped(state){
+  monitoring=false;updateMonitorButton();
+  if(state)applyState(state);
+}
+function onHistoryCleared(state){if(state)applyState(state);}
+function applyState(state){
+  if(!state)return;
+  currentIp=state.currentIp&&state.currentIp!=='null'?state.currentIp:null;
+  lastChangedAt=state.lastChangedAt&&state.lastChangedAt!=='null'?Number(state.lastChangedAt):null;
+  const nextCycle=state.cycleStartAt&&state.cycleStartAt!=='null'?Number(state.cycleStartAt):null;
+  if(state.changed)warnedForPrediction=null;
+  cycleStartAt=nextCycle;
+  cachedHistory=Array.isArray(state.history)?state.history:[];
+  el('currentIp').textContent=currentIp||'—';
+  el('lastChanged').textContent=lastChangedAt?formatDate(lastChangedAt):'—';
+  el('ipCaption').textContent=currentIp?'آخر عنوان معروف من فحص البروكسي':'لم يُسجّل عنوان بعد';
+  updateDuration();renderHistory();
+}
+function formatDate(ms){
+  if(!ms)return '—';
+  try{return new Intl.DateTimeFormat('ar',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms));}
+  catch(_){return new Date(ms).toLocaleString();}
+}
+function formatDuration(seconds){
+  seconds=Math.max(0,Math.floor(seconds||0));
+  const d=Math.floor(seconds/86400);seconds%=86400;
+  const h=Math.floor(seconds/3600);seconds%=3600;
+  const m=Math.floor(seconds/60);const s=seconds%60;
+  const parts=[];
+  if(d)parts.push(d+' يوم');if(h)parts.push(h+' ساعة');if(m)parts.push(m+' دقيقة');parts.push(s+' ثانية');
+  return parts.join(' و ');
+}
+function updateDuration(){
+  if(!lastChangedAt){el('currentDuration').textContent='—';return;}
+  el('currentDuration').textContent=formatDuration((Date.now()-lastChangedAt)/1000);
+}
+function renderHistory(){
+  const list=el('historyList');list.replaceChildren();
+  if(!cachedHistory.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='لا توجد تغيّرات مسجلة حتى الآن. سيظهر أول عنوان عند نجاح الفحص.';list.appendChild(empty);return;}
+  [...cachedHistory].reverse().forEach(item=>{
+    const card=document.createElement('article');card.className='history-item';
+    const top=document.createElement('div');top.className='history-top';
+    const ip=document.createElement('div');ip.className='history-ip';ip.textContent=item.ip||'عنوان غير متاح';
+    const tag=document.createElement('span');tag.className='history-tag';tag.textContent=item.kind==='first'?'أول تسجيل':'تغيّر العنوان';
+    top.append(ip,tag);
+    const date=document.createElement('div');date.className='history-meta';date.textContent='وقت الرصد: '+formatDate(Number(item.detectedAt));
+    card.append(top,date);
+    if(item.previousIp&&item.previousIp!=='null'){
+      const previous=document.createElement('div');previous.className='history-meta';previous.textContent='العنوان السابق: '+item.previousIp;card.appendChild(previous);
+    }
+    if(item.kind==='changed'){
+      const duration=document.createElement('div');duration.className='history-meta';duration.textContent='مدة بقاء العنوان السابق: '+formatDuration(Number(item.durationSeconds));card.appendChild(duration);
+    }
+    list.appendChild(card);
+  });
+}
+function clearHistory(){
+  if(!window.AndroidProxy)return;
+  window.AndroidProxy.clearHistory();
+}
+function clearInputs(){
+  if(monitoring){showError('أوقف المراقبة قبل تغيير بيانات البروكسي.');return;}
+  ['proxyHost','proxyPort','proxyUser','proxyPass'].forEach(id=>el(id).value='');
+  el('errorSection').classList.add('hidden');
+  setStatus('تم مسح حقول البروكسي');
+}
+
+window.addEventListener('load',()=>{
+  if(window.AndroidProxy){
+    loadMonitorSettings();
+    try{const state=JSON.parse(window.AndroidProxy.getSavedState());applyState(state);}
+    catch(_){setStatus('تعذر تحميل السجل المحفوظ','warn');}
+  }else{showError('هذه الواجهة مخصصة لتطبيق Android ProxyGuard.');}
+  displayTimer=setInterval(()=>{updateDuration();updateCountdown();},1000);
+  ['alertInput','intervalSelect','soundToggle'].forEach(id=>{
+    el(id).addEventListener('change',()=>{
+      const values=readMonitorSettings();
+      if(values){
+        saveMonitorSettings(values);
+        if(monitoring&&validateConfig(getConfig())===''){
+          try{window.AndroidProxy.startMonitor(JSON.stringify(getConfig()),values.pollSeconds,values.rotationSeconds,values.alertSeconds,values.soundEnabled);}catch(_){ }
+        }
+      }
+      updateCountdown();
+    });
+  });
+  updateCountdown();
+});
+</script>
+</body>
+</html>
