@@ -125,6 +125,13 @@ button:disabled{opacity:.48;cursor:wait}
           <label for="proxyPass">كلمة المرور (اختياري)</label>
           <input id="proxyPass" type="password" autocomplete="off" placeholder="••••••••">
         </div>
+        <div class="field full">
+          <label for="proxyImport">لصق بيانات البروكسي بصيغة تلقائية (اختياري)</label>
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px">
+            <input id="proxyImport" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="socks5://user:pass@host:1080 أو host:port:user:pass">
+            <button type="button" class="secondary" onclick="parseProxyInput()">تحليل</button>
+          </div>
+        </div>
       </div>
       <div class="actions">
         <button id="checkBtn" class="primary" onclick="checkProxy()">فحص البروكسي الآن</button>
@@ -231,6 +238,54 @@ function validateConfig(c){
   if(!Number.isInteger(c.port)||c.port<1||c.port>65535)return 'أدخل منفذاً صحيحاً بين 1 و65535.';
   if(Boolean(c.username)!==Boolean(c.password))return 'أدخل اسم المستخدم وكلمة المرور معاً، أو اتركهما فارغين.';
   return '';
+}
+function parseProxyInput(){
+  const raw=el('proxyImport').value.trim();
+  if(!raw){showError('الصق بيانات البروكسي أولاً.');return;}
+  let host='',port=0,username='',password='',type=el('proxyType').value;
+  const setHostPort=value=>{
+    let s=value.trim();
+    const bracketed=s.match(/^\\[([^\\]]+)\\]:(\\d+)$/);
+    if(bracketed)return {host:bracketed[1],port:Number(bracketed[2])};
+    const m=s.match(/^(.+):(\\d+)$/);
+    if(!m)return null;
+    return {host:m[1],port:Number(m[2])};
+  };
+  try{
+    if(/^(https?|socks5h?):\\/\\//i.test(raw)){
+      const u=new URL(raw);
+      type=u.protocol.toLowerCase().startsWith('http')?'HTTP':'SOCKS5';
+      host=u.hostname;
+      port=Number(u.port)||(type==='HTTP'?8080:1080);
+      username=decodeURIComponent(u.username||'');
+      password=decodeURIComponent(u.password||'');
+    }else if(raw.includes('@')){
+      const at=raw.lastIndexOf('@');
+      const auth=raw.slice(0,at).split(':');
+      const target=setHostPort(raw.slice(at+1));
+      if(auth.length<2||!target)throw new Error('صيغة user:pass@host:port غير مكتملة.');
+      username=decodeURIComponent(auth.shift());
+      password=decodeURIComponent(auth.join(':'));
+      host=target.host;port=target.port;
+    }else{
+      const parts=raw.split(':');
+      if(parts.length===4){
+        host=parts[0];port=Number(parts[1]);username=parts[2];password=parts[3];
+      }else{
+        const target=setHostPort(raw);
+        if(!target)throw new Error('استخدم host:port أو host:port:user:pass.');
+        host=target.host;port=target.port;
+      }
+    }
+    if(!host||!Number.isInteger(port)||port<1||port>65535)throw new Error('العنوان أو المنفذ غير صالح.');
+    el('proxyHost').value=host;
+    el('proxyPort').value=String(port);
+    el('proxyType').value=type;
+    el('proxyUser').value=username;
+    el('proxyPass').value=password;
+    el('errorSection').classList.add('hidden');
+    setStatus('تم تحليل البيانات؛ راجعها ثم افحص الاتصال.');
+  }catch(e){showError('تعذر تحليل صيغة البروكسي: '+(e&&e.message?e.message:'صيغة غير معروفة'));}
 }
 function checkProxy(){
   const cfg=getConfig(),err=validateConfig(cfg);
