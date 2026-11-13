@@ -101,6 +101,10 @@ jobs:
           test -s app/src/main/assets/index.html
           test -s app/src/main/java/com/proxyguard/android/MainActivity.kt
           test -s app/src/main/java/com/proxyguard/android/ProxyEngine.kt
+          # Apply the updated prediction-based monitor interface after restoring the verified source bundle.
+          mkdir -p app/src/main/assets
+          cp overrides/index.html app/src/main/assets/index.html
+          grep -q "function predictNextChange()" app/src/main/assets/index.html
 
       - name: Run Android unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
@@ -114,7 +118,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: proxyguard-professional-1.1.0-debug
+          name: proxyguard-professional-1.2.0-debug
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/debug/app-debug.apk.sha256
