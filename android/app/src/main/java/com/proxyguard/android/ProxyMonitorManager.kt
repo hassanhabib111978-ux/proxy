@@ -31,7 +31,7 @@ internal data class ProxyResult(
 
 internal class ProxyMonitorManager(context: Context) {
     private val appContext = context.applicationContext
-    private val engine = ProxyEngine(appContext)
+    private val engine = ProxyEngineV2()
     private val store = ProxyStateStore(appContext)
     private val executor = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "proxyguard-monitor").apply { isDaemon = true }
@@ -147,9 +147,9 @@ private class ProxyStateStore(context: Context) {
 
     fun monitorSettings(): JSONObject = synchronized(lock) {
         JSONObject()
-            .put("rotationSeconds", prefs.getInt("rotation_seconds", 300))
+            .put("rotationSeconds", prefs.getInt("rotation_seconds", 1800))
             .put("alertSeconds", prefs.getInt("alert_seconds", 10))
-            .put("pollSeconds", prefs.getInt("poll_seconds", 5))
+            .put("pollSeconds", prefs.getInt("poll_seconds", 3))
             .put("soundEnabled", prefs.getBoolean("sound_enabled", true))
     }
 
