@@ -5,7 +5,7 @@ package.domain = org.example
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0
-requirements = python3,kivy==2.3.0,requests,urllib3,chardet,idna,certifi,plyer
+requirements = python3,kivy==2.3.0,requests,urllib3,chardet,idna,certifi,plyer,pysocks
 orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET,VIBRATE,POST_NOTIFICATIONS
