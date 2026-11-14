@@ -27,7 +27,7 @@ IP_SERVICES = [
     "https://ifconfig.me/ip",
     "https://icanhazip.com",
 ]
-RISK_THRESHOLD = 60  # نسبة الخطورة التي تُطلق التنبيه
+RISK_THRESHOLD = 35  # نسبة الخطورة التي تُطلق التنبيه
 
 
 class ProxyConnector:
